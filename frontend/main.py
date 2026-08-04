@@ -675,44 +675,20 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
     state["ejercicio_actual"] = state.get("ejercicio_actual", 0)
     state["serie_actual"] = state.get("serie_actual", 1)
     
-    # 1. Resolver el ejercicio actual y su imagen para la carga inicial
-    ex_idx = state["ejercicio_actual"]
-    if ex_idx < len(state["ejercicios"]):
-        ex = state["ejercicios"][ex_idx]
-        initial_name = ex["nombre"]
-        initial_reps = f"Serie {state['serie_actual']} de {ex['series']} | {ex['repeticiones']} Reps"
-        
-        anim_id = ex.get("anim") or ex.get("id_animacion_avatar") or ""
-        local_path = f"assets/animations/{anim_id}.gif" if anim_id else ""
-        
-        if anim_id and os.path.exists(local_path):
-            initial_src = f"/animations/{anim_id}.gif"
-            initial_w, initial_h = 350, 180
-        else:
-            if os.path.exists("assets/animations/jogging.gif"):
-                initial_src = "/animations/jogging.gif"
-                initial_w, initial_h = 350, 180
-            else:
-                initial_src = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
-                initial_w, initial_h = 130, 130
-    else:
-        initial_name = ""
-        initial_reps = ""
-        initial_src = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
-        initial_w, initial_h = 130, 130
-
-    # 2. Uso de Imagen en Bucle (Control ft.Image con Dimensiones Optimizadas)
-    lbl_ex_name = ft.Text(initial_name, size=22, weight=ft.FontWeight.BOLD, color="#FFFFFF")
-    lbl_series_reps = ft.Text(initial_reps, size=15, color="#00F0FF", weight=ft.FontWeight.W_500)
+    # 1. Declaración exacta requerida para la imagen del avatar de Roky
+    avatar_roky = ft.Image(
+        src="avatar_roky.gif", 
+        width=350, 
+        height=180, 
+        fit=ft.ImageFit.CONTAIN
+    )
+    
+    lbl_ex_name = ft.Text("", size=22, weight=ft.FontWeight.BOLD, color="#FFFFFF")
+    lbl_series_reps = ft.Text("", size=15, color="#00F0FF", weight=ft.FontWeight.W_500)
     lbl_timer = ft.Text("", size=24, weight=ft.FontWeight.BOLD, color="#00FF66", visible=False)
     
     avatar_box = ft.Container(
-        content=ft.Image(
-            src=initial_src,
-            width=initial_w,
-            height=initial_h,
-            fit="contain"
-        ),
+        content=avatar_roky,
         alignment=ft.alignment.Alignment.CENTER,
         height=180,
         border_radius=15,
@@ -777,28 +753,24 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
         lbl_ex_name.value = ex["nombre"]
         lbl_series_reps.value = f"Serie {state['serie_actual']} de {ex['series']} | {ex['repeticiones']} Reps"
         
-        # 2. Estrategia de Fallback Seguro con Detección de Archivos Locales y Dimensiones Dinámicas
+        # 2. Mapeo dinámico eliminando barra inclinada inicial para leer dentro del sandbox
         anim_id = ex.get("anim") or ex.get("id_animacion_avatar") or ""
         local_path = f"assets/animations/{anim_id}.gif" if anim_id else ""
         
         if anim_id and os.path.exists(local_path):
-            src_path = f"/animations/{anim_id}.gif"
+            src_path = f"animations/{anim_id}.gif"  # Mapeo relativo sin barra inicial
             w, h = 350, 180
         else:
             if os.path.exists("assets/animations/jogging.gif"):
-                src_path = "/animations/jogging.gif"
+                src_path = "animations/jogging.gif"  # Mapeo relativo sin barra inicial
                 w, h = 350, 180
             else:
                 src_path = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
                 w, h = 130, 130
             
-        # Re-creamos el control ft.Image y se lo asignamos al content del contenedor
-        avatar_box.content = ft.Image(
-            src=src_path,
-            width=w,
-            height=h,
-            fit="contain"
-        )
+        avatar_roky.src = src_path
+        avatar_roky.width = w
+        avatar_roky.height = h
         print(f"[debug] actualizar_pantalla: src_path = {src_path}")
         
         if state.get("is_resting", False):
@@ -810,7 +782,6 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
             btn_accion.bgcolor = "#00FF66"
             btn_accion.shadow = ft.BoxShadow(spread_radius=1, blur_radius=10, color="#00FF66", offset=ft.Offset(0, 2))
             
-        # 4. Refresco Forzado de Pantalla
         try:
             page.update()
         except Exception:
@@ -856,7 +827,16 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
         state["serie_actual"] = 1
         actualizar_pantalla()
 
-    actualizar_pantalla()
+    # 3. Refresco diferido para limpiar caché inmediatamente después de montar el componente
+    async def refrescar_tras_montar(e=None):
+        import asyncio
+        await asyncio.sleep(0.08)
+        try:
+            actualizar_pantalla()
+        except Exception:
+            pass
+
+    page.run_task(refrescar_tras_montar)
 
     return ft.Container(
         content=ft.Column(
@@ -999,4 +979,4 @@ def main(page: ft.Page):
     navegar_a("registro")
 
 if __name__ == "__main__":
-    ft.app(target=main, port=8501, host="127.0.0.1", view=ft.AppView.WEB_BROWSER, assets_dir="assets")
+    ft.app(target=main, assets_dir="assets", view=ft.AppView.WEB_BROWSER, port=8501, host="0.0.0.0")
