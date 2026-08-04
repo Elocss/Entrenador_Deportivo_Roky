@@ -147,6 +147,50 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
         on_click=capturar_foto
     )
 
+    def enviar_datos_al_backend(nombre, peso, altura, deporte, foto, plan_meses):
+        import requests
+        import threading
+        
+        def api_call():
+            try:
+                url = "http://127.0.0.1:8000/registro"
+                payload = {
+                    "nombre": nombre,
+                    "peso": peso,
+                    "altura": altura,
+                    "deporte": deporte,
+                    "foto": foto,
+                    "plan_meses": plan_meses
+                }
+                logger_msg = f"[API] Enviando datos a {url}..."
+                print(logger_msg)
+                
+                response = requests.post(url, json=payload, timeout=15.0)
+                if response.status_code == 200:
+                    plan_data = response.json()
+                    state["plan_data"] = plan_data
+                    print("[API] Rutina de la IA recibida exitosamente del backend.")
+                    
+                    # Cargar ejercicios de la IA en el estado para el entrenamiento activo si están disponibles
+                    if "bloques_mensuales" in plan_data and len(plan_data["bloques_mensuales"]) > 0:
+                        bloque1 = plan_data["bloques_mensuales"][0]
+                        for rutina in bloque1.get("rutina_semanal", []):
+                            if rutina.get("dia") == "Lunes":
+                                state["ejercicios"] = [
+                                    {
+                                        "nombre": ej["nombre"],
+                                        "series": ej["series"],
+                                        "repeticiones": ej["repeticiones"],
+                                        "anim": ej["id_animacion_avatar"]
+                                    } for ej in rutina.get("ejercicios", [])
+                                ]
+                else:
+                    print(f"[API] Error del backend ({response.status_code}): {response.text}")
+            except Exception as ex:
+                print(f"[API] Error de conexión con el backend: {ex}")
+                
+        threading.Thread(target=api_call, daemon=True).start()
+
     def on_registrar(e):
         lbl_error.value = ""
         if not txt_nombre.value:
@@ -173,20 +217,18 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
         state["deporte"] = dd_deporte.value
         state["avatar_seed"] = txt_nombre.value.replace(" ", "") or "roky"
         
-        # Conectar con el backend en segundo plano si está disponible
-        if api_client:
-            try:
-                api_client.registrar_usuario(
-                    name=state["nombre"],
-                    email="roky_user@gmail.com",
-                    weight=state["peso"],
-                    height=int(state["altura"]),
-                    sport=state["deporte"],
-                    plan_months=state["plan_meses"]
-                )
-            except Exception as ex:
-                print(f"Error api_client: {ex}")
+        # Enviar los datos en segundo plano al backend (puerto 8000)
+        foto_mock = state.get("foto_url", "")
+        enviar_datos_al_backend(
+            nombre=state["nombre"],
+            peso=state["peso"],
+            altura=state["altura"],
+            deporte=state["deporte"],
+            foto=foto_mock,
+            plan_meses=state.get("plan_meses", 3)
+        )
                 
+        # Cambiar inmediatamente al estado de la Pantalla 2 ("plan")
         navegar_a("plan")
 
     btn_registrar = ft.Container(
@@ -247,7 +289,8 @@ def vista_plan(page: ft.Page, state: dict, navegar_a):
         lbl_status = ft.Text("Escaneando facciones...", color="#8B949E", size=14, text_align=ft.TextAlign.CENTER)
         bar_loading = ft.ProgressBar(color="#00F0FF", width=250)
         
-        def simular_creacion_avatar():
+        async def simular_creacion_avatar(e=None):
+            import asyncio
             pasos = [
                 "Procesando foto de perfil...",
                 "Modelando estructura muscular...",
@@ -260,13 +303,15 @@ def vista_plan(page: ft.Page, state: dict, navegar_a):
                     page.update()
                 except Exception:
                     return
-                time.sleep(0.8)
+                await asyncio.sleep(0.8)
             
             state["avatar_generado"] = True
             try:
                 navegar_a("plan")
-            except Exception:
-                pass
+            except Exception as e:
+                import traceback
+                print("Error al navegar a plan:")
+                traceback.print_exc()
 
         page.run_task(simular_creacion_avatar)
         
@@ -330,7 +375,7 @@ def vista_plan(page: ft.Page, state: dict, navegar_a):
             badge = ft.Container(
                 content=ft.Text("POPULAR", color="#000000", size=9, weight=ft.FontWeight.BOLD),
                 bgcolor="#00FF66",
-                padding=ft.padding.only(left=6, right=6, top=1, bottom=1),
+                padding=ft.padding.Padding(left=6, right=6, top=1, bottom=1),
                 border_radius=4,
                 visible=(m == 6)
             )
@@ -647,7 +692,8 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
         border=ft.Border.all(1, "#1F2937")
     )
     
-    def loop_animacion_avatar():
+    async def loop_animacion_avatar(e=None):
+        import asyncio
         state["is_animating"] = True
         scale_up = True
         while state.get("is_animating", False):
@@ -671,11 +717,12 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
                 page.update()
             except Exception:
                 break
-            time.sleep(0.4)
+            await asyncio.sleep(0.4)
 
     page.run_task(loop_animacion_avatar)
 
-    def ejecutar_timer_descanso():
+    async def ejecutar_timer_descanso(e=None):
+        import asyncio
         state["rest_time"] = 30
         state["is_resting"] = True
         lbl_timer.visible = True
@@ -690,7 +737,7 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
                 page.update()
             except Exception:
                 break
-            time.sleep(1)
+            await asyncio.sleep(1)
             state["rest_time"] -= 1
             
         state["is_resting"] = False
@@ -928,4 +975,4 @@ def main(page: ft.Page):
     navegar_a("registro")
 
 if __name__ == "__main__":
-    ft.app(target=main, port=8501, host="0.0.0.0", view=ft.AppView.WEB_BROWSER)
+    ft.app(target=main, port=8501, host="127.0.0.1", view=ft.AppView.WEB_BROWSER)
