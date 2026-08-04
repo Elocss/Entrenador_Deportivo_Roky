@@ -676,26 +676,12 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
     state["serie_actual"] = state.get("serie_actual", 1)
     
     # 1. Uso de Imagen en Bucle (Control ft.Image con Dimensiones Optimizadas)
-    if os.path.exists("assets/animations/jogging.gif"):
-        def_src = "/animations/jogging.gif"
-        def_w, def_h = 350, 180
-    else:
-        def_src = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
-        def_w, def_h = 130, 130
-        
-    img_animacion = ft.Image(
-        src=def_src,
-        width=def_w,
-        height=def_h,
-        fit=ft.ImageFit.CONTAIN
-    )
-    
     lbl_ex_name = ft.Text("", size=22, weight=ft.FontWeight.BOLD, color="#FFFFFF")
     lbl_series_reps = ft.Text("", size=15, color="#00F0FF", weight=ft.FontWeight.W_500)
     lbl_timer = ft.Text("", size=24, weight=ft.FontWeight.BOLD, color="#00FF66", visible=False)
     
     avatar_box = ft.Container(
-        content=img_animacion,
+        content=ft.Container(),  # Se rellenará dinámicamente en actualizar_pantalla()
         alignment=ft.alignment.Alignment.CENTER,
         height=180,
         border_radius=15,
@@ -766,19 +752,22 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
         
         if anim_id and os.path.exists(local_path):
             src_path = f"/animations/{anim_id}.gif"
-            img_animacion.width = 350
-            img_animacion.height = 180
+            w, h = 350, 180
         else:
             if os.path.exists("assets/animations/jogging.gif"):
                 src_path = "/animations/jogging.gif"
-                img_animacion.width = 350
-                img_animacion.height = 180
+                w, h = 350, 180
             else:
                 src_path = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
-                img_animacion.width = 130
-                img_animacion.height = 130
+                w, h = 130, 130
             
-        img_animacion.src = src_path
+        # Re-creamos el control ft.Image y se lo asignamos al content del contenedor
+        avatar_box.content = ft.Image(
+            src=src_path,
+            width=w,
+            height=h,
+            fit="contain"
+        )
         print(f"[debug] actualizar_pantalla: src_path = {src_path}")
         
         if state.get("is_resting", False):
