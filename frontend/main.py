@@ -659,6 +659,10 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
 
 # --- VISTA 4: ENTRENAMIENTO ACTIVO ---
 def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
+    # Compatibilidad para Flet en caso de que ft.ImageFit no esté definido
+    if not hasattr(ft, "ImageFit"):
+        ft.ImageFit = ft.BoxFit
+
     if "ejercicios" not in state or not state["ejercicios"]:
         state["ejercicios"] = [
             {"nombre": "Sentadillas Cyber", "series": 4, "repeticiones": 15, "anim": "squats"},
@@ -669,14 +673,11 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
     state["ejercicio_actual"] = state.get("ejercicio_actual", 0)
     state["serie_actual"] = state.get("serie_actual", 1)
     
-    avatar_url = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state['avatar_seed']}&mood[]=happy"
-    img_avatar = ft.Image(
-        src=avatar_url,
-        width=130,
-        height=130,
-        fit="contain",
-        animate_offset=ft.Animation(300, "easeInOut"),
-        animate_scale=ft.Animation(300, "easeInOut"),
+    # 1. Uso de Imagen en Bucle (Control ft.Image con Dimensiones Optimizadas)
+    img_animacion = ft.Image(
+        width=350,
+        height=180,
+        fit=ft.ImageFit.CONTAIN
     )
     
     lbl_ex_name = ft.Text("", size=22, weight=ft.FontWeight.BOLD, color="#FFFFFF")
@@ -684,42 +685,13 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
     lbl_timer = ft.Text("", size=24, weight=ft.FontWeight.BOLD, color="#00FF66", visible=False)
     
     avatar_box = ft.Container(
-        content=img_avatar,
+        content=img_animacion,
         alignment=ft.alignment.Alignment.CENTER,
         height=180,
         border_radius=15,
         bgcolor="#161B22",
         border=ft.Border.all(1, "#1F2937")
     )
-    
-    async def loop_animacion_avatar(e=None):
-        import asyncio
-        state["is_animating"] = True
-        scale_up = True
-        while state.get("is_animating", False):
-            if state["ejercicio_actual"] >= len(state["ejercicios"]):
-                break
-            ex = state["ejercicios"][state["ejercicio_actual"]]
-            anim = ex["anim"]
-            
-            if anim == "pushups":
-                img_avatar.scale = 0.85 if scale_up else 1.05
-                img_avatar.offset = ft.transform.Offset(0, 0.05 if scale_up else 0)
-            elif anim == "squats":
-                img_avatar.offset = ft.transform.Offset(0, 0.15 if scale_up else -0.05)
-                img_avatar.scale = 1.0
-            else:  # plank
-                img_avatar.offset = ft.transform.Offset(0.03 if scale_up else -0.03, 0)
-                img_avatar.scale = 1.0
-                
-            scale_up = not scale_up
-            try:
-                page.update()
-            except Exception:
-                break
-            await asyncio.sleep(0.4)
-
-    page.run_task(loop_animacion_avatar)
 
     async def ejecutar_timer_descanso(e=None):
         import asyncio
@@ -778,6 +750,15 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
         lbl_ex_name.value = ex["nombre"]
         lbl_series_reps.value = f"Serie {state['serie_actual']} de {ex['series']} | {ex['repeticiones']} Reps"
         
+        # 2. Estrategia de Fallback Seguro
+        anim_id = ex.get("anim") or ex.get("id_animacion_avatar") or ""
+        if not anim_id or anim_id.strip() == "":
+            src_path = "/animations/jogging.gif"  # Calentamiento base por defecto
+        else:
+            src_path = f"/animations/{anim_id}.gif"
+            
+        img_animacion.src = src_path
+        
         if state.get("is_resting", False):
             btn_accion.content = ft.Text("Omitir Descanso", color="#000000", weight=ft.FontWeight.BOLD)
             btn_accion.bgcolor = "#00F0FF"
@@ -787,6 +768,7 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
             btn_accion.bgcolor = "#00FF66"
             btn_accion.shadow = ft.BoxShadow(spread_radius=1, blur_radius=10, color="#00FF66", offset=ft.Offset(0, 2))
             
+        # 4. Refresco Forzado de Pantalla
         try:
             page.update()
         except Exception:
@@ -975,4 +957,4 @@ def main(page: ft.Page):
     navegar_a("registro")
 
 if __name__ == "__main__":
-    ft.app(target=main, port=8501, host="127.0.0.1", view=ft.AppView.WEB_BROWSER)
+    ft.app(target=main, port=8501, host="127.0.0.1", view=ft.AppView.WEB_BROWSER, assets_dir="assets")
