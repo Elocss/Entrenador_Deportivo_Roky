@@ -657,11 +657,12 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
     )
 
 
-# --- VISTA 4: ENTRENAMIENTO ACTIVO ---
-def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
-    # Compatibilidad para Flet en caso de que ft.ImageFit no esté definido
-    if not hasattr(ft, "ImageFit"):
-        ft.ImageFit = ft.BoxFit
+    # Forzar ft.ImageFit a usar strings para máxima compatibilidad con todas las versiones de Flet
+    class ImageFitHelper:
+        CONTAIN = "contain"
+        COVER = "cover"
+        FILL = "fill"
+    ft.ImageFit = ImageFitHelper
 
     if "ejercicios" not in state or not state["ejercicios"]:
         state["ejercicios"] = [
@@ -765,6 +766,7 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
                 src_path = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
             
         img_animacion.src = src_path
+        print(f"[debug] actualizar_pantalla: src_path = {src_path}")
         
         if state.get("is_resting", False):
             btn_accion.content = ft.Text("Omitir Descanso", color="#000000", weight=ft.FontWeight.BOLD)
