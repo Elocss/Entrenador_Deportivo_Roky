@@ -1,0 +1,24 @@
+# Entornos virtuales
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache y compilados
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Variables de entorno locales y datos locales
+.env
+backend/.env
+mock_firestore.json
+
+# Carpetas del IDE y agentes
+.idea/
+.vscode/
+.agents/
+.gemini/
+.system_generated/
+*.log

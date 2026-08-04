@@ -1,0 +1,165 @@
+{\rtf1\ansi\ansicpg1252\deff0\nouicompat{\fonttbl{\f0\fnil\fcharset0 Calibri;}{\f1\fnil Calibri;}}
+{\*\generator Riched20 10.0.19041}\viewkind4\uc1 
+\pard\sa200\sl276\slmult1\f0\fs22\lang10 # CONTEXTO DEL PROYECTO: APP "ROKY"\par
+Act\'faa como un Ingeniero de Software Senior. Desarrolla una aplicaci\'f3n m\'f3vil de entrenamiento deportivo guiada por un avatar animado (IA) llamado Roky. La app se ejecutar\'e1 en el ecosistema de Google Cloud.\par
+\par
+## 1. STACK TECNOL\'d3GICO OBLIGATORIO\par
+- Frontend: Flet o Streamlit (Python nativo para interfaz m\'f3vil).\par
+- Backend: FastAPI (Python) desplegado en Google Cloud Run.\par
+- Base de Datos: Google Cloud Firestore (NoSQL).\par
+- Archivos/Im\'e1genes: Google Cloud Storage.\par
+- Motores de IA: Google Gemini API (Vertex AI) para rutinas + OpenCV/MediaPipe para procesamiento de im\'e1genes.\par
+\par
+## 2. ESQUEMA DE BASE DE DATOS (FIRESTORE CODES)\par
+### Colecci\'f3n: 'usuarios'\par
+\{\par
+  "id_usuario": "string_uuid",\par
+  "nombre": "string",\par
+  "correo": "string",\par
+  "peso_actual_kg": 0.0,\par
+  "altura_cm": 0,\par
+  "deporte_elegido": "string",\par
+  "foto_original_url": "string_url",\par
+  "avatar_comic_url": "string_url",\par
+  "plan_elegido_meses": 3, // Opciones: 3, 6, 9\par
+  "fecha_registro": "timestamp"\par
+\}\par
+\par
+### Colecci\'f3n: 'planes_entrenamiento'\par
+\{\par
+  "id_plan": "string_uuid",\par
+  "id_usuario": "string_uuid",\par
+  "duracion_total_meses": 0,\par
+  "bloques_mensuales": [\par
+    \{\par
+      "mes": 0,\par
+      "enfoque_fisico": "string",\par
+      "prediccion_peso_estimado": 0.0,\par
+      "rutina_semanal": [\par
+        \{\par
+          "dia": "string",\par
+          "grupo_muscular": "string",\par
+          "ejercicios": [\par
+            \{"nombre": "string", "series": 0, "repeticiones": 0, "id_animacion_avatar": "string"\}\par
+          ]\par
+        \}\par
+      ]\par
+    \}\par
+  ]\par
+\}\par
+\par
+## 3. FLUJO DE PANTALLAS Y UI (MODO OSCURO NE\'d3N)\par
+- Pantalla 1 (Registro): Campos: Nombre, Peso, Altura, Correo, Deporte. C\'e1mara integrada para capturar foto frontal de medio cuerpo.\par
+- Pantalla 2 (Carga y Selecci\'f3n): Muestra barra de progreso mientras se genera el avatar. Presenta a "Roky" (avatar 2D estilo c\'f3mic basado en las facciones del usuario). Botones de selecci\'f3n: Plan 3, 6 o 9 meses.\par
+- Pantalla 3 (Simulaci\'f3n de Progreso): Slider interactivo de meses (0 al seleccionado). Al moverlo, el avatar Roky se actualiza visualmente mostrando p\'e9rdida de grasa/ganancia muscular predictiva. Muestra m\'e9tricas estimadas de peso abajo.\par
+- Pantalla 4 (Entrenamiento Activo): Zona superior con animaci\'f3n 2D en bucle de Roky haciendo el ejercicio actual. Zona central con Series/Reps. Zona inferior con botones grandes: "Iniciar Serie" y "Ejercicio Completado".\par
+\par
+## 4. INSTRUCCIONES DE SEGURIDAD Y RENDIMIENTO (RECOMENDACIONES REQUISITO)\par
+1. Estilo Visual Seguro: El avatar DEBE ser estrictamente estilo C\'f3mic/Animaci\'f3n 2D. Evitar deformaciones fotorrealistas para prevenir fallos visuales extra\'f1os (Efecto Valle Inquietante).\par
+2. Sanitizaci\'f3n de Datos: Valida el correo con expresiones regulares y restringe la subida de im\'e1genes exclusivamente a formatos JPG/PNG de m\'e1ximo 5MB para ahorrar ancho de banda en la carga inicial.\par
+3. Cach\'e9 de Animaciones: Las animaciones de los ejercicios deben cargarse localmente (o mediante URLs optimizadas en Cloud Storage) para evitar latencia durante el entrenamiento del usuario.\par
+4. Salida estricta de la IA: Configura el System Prompt de Gemini para que devuelva la rutina estructurada \'fanica y exclusivamente en formato JSON crudo, eliminando textos introductorios para no romper el backend de Python.\par
+\par
+## ACCI\'d3N INMEDIATA REQUERIDA\par
+Genera la estructura inicial de archivos del proyecto en Python utilizando FastAPI para el Backend y Flet para el Frontend, incluyendo las rutas de conexi\'f3n b\'e1sicas para la base de datos de usuarios.\par
+## 5. ESPECIFICACIONES DE DISE\'d1O DE INTERFAZ (UI/UX EXACTA)\par
+Replica el dise\'f1o visual aprobado bas\'e1ndote en la siguiente gu\'eda de estilos y maquetaci\'f3n de componentes para el frontend:\par
+\par
+- Paleta de Colores (Modo Oscuro Cyber):\par
+  * Fondo Principal: Negro carb\'f3n / Azul medianoche muy oscuro (#0D1117).\par
+  * Contenedores de Informaci\'f3n: Gris oscuro con bordes redondeados y opacidad sutil (#161B22).\par
+  * Color de Acento / Botones Activos: Verde Ne\'f3n / Cyan brillante (#00FF66 o #00F0FF) para alta visibilidad.\par
+  * Texto Principal: Blanco puro (#FFFFFF) y Gris claro para etiquetas secundarias (#8B949E).\par
+\par
+- Distribuci\'f3n de Elementos en Pantalla (Layout Vertical):\par
+  * Barra Superior (Header): T\'edtulo de la secci\'f3n centralizado ("Mi Progreso") flanqueado por botones minimalistas de navegaci\'f3n en color cyan.\par
+  * Control de Simulaci\'f3n: Un slider horizontal superior subtitulado "Tu Transformaci\'f3n" que indique din\'e1micamente el mes visualizado (Ej: "Mes 4 de 6").\par
+  * Tarjeta Central del Avatar (Roky): El avatar de c\'f3mic 2D centrado en pantalla completa, rodeado por cuatro contenedores flotantes sim\'e9tricos con esquinas redondeadas que muestran:\par
+    - Superior Izquierda: Peso Actual (Ej: 78 kg).\par
+    - Inferior Izquierda: Mes del Plan (Ej: Mes 4 de 6).\par
+    - Superior Derecha: M\'fasculo Ganado (Ej: +2.4 kg) en fuente verde ne\'f3n.\par
+    - Inferior Derecha: Grasa Corporal (Ej: 14%) en fuente verde ne\'f3n.\par
+  * Panel de Control Inferior: Un bloque oscuro que detalla el "Entrenamiento de Hoy" enlistando los ejercicios, series y repeticiones. Al fondo, un bot\'f3n de ancho completo (Full-Width), redondeado y de color verde ne\'f3n vibrante con la acci\'f3n: "Iniciar Rutina" en texto negro en negrita.\par
+## 6. PROTOCOLOS DE SEGURIDAD Y PROTECCI\'d3N DE DATOS (MANDATORIO)\par
+Implementa las siguientes medidas de seguridad a nivel de c\'f3digo y arquitectura en Google Cloud para proteger la app y los datos del usuario:\par
+\par
+- Autenticaci\'f3n y Autorizaci\'f3n Segura:\par
+  * Implementar Google Cloud Identity Platform o Firebase Authentication para el registro y login.\par
+  * Proteger todas las rutas de la API en FastAPI utilizando Tokens JWT (JSON Web Tokens) con algoritmo de encriptaci\'f3n HS256 y tiempo de expiraci\'f3n de 15 minutos.\par
+\par
+- Protecci\'f3n de Datos Biom\'e9tricos e Im\'e1genes:\par
+  * Cifrado en Tr\'e1nsito y Reposo: Forzar conexiones HTTPS con TLS 1.3. Configurar Google Cloud Storage y Firestore con cifrado AES-256 autom\'e1tico.\par
+  * Privacidad de Archivos: Las fotos de los usuarios en Cloud Storage deben almacenarse en buckets privados. El acceso a las im\'e1genes desde el frontend solo se permitir\'e1 mediante URL firmadas (Signed URLs) con un tiempo de vida m\'e1ximo de 5 minutos.\par
+\par
+- Seguridad del C\'f3digo y Endpoints (FastAPI):\par
+  * Prevenci\'f3n de Inyecciones: Utilizar el ODM/ORM oficial de Firestore para parametrizar todas las consultas y evitar inyecciones de datos.\par
+  * CORS Estricto: Configurar el middleware de CORS en FastAPI para permitir peticiones \'fanica y exclusivamente desde el dominio oficial de la app m\'f3vil.\par
+  * Rate Limiting: Implementar un limitador de peticiones (m\'e1ximo 60 peticiones por minuto por usuario) para mitigar ataques de denegaci\'f3n de servicio (DoS) y evitar el abuso en el consumo de tokens de la API de Gemini.\par
+continuacion con el bloque de seguridad:\par
+- Manejo Seguro de Credenciales (API Keys):\par
+  * No escribir la API Key de Google Gemini directamente en el c\'f3digo fuente.\par
+  * Utilizar variables de entorno mediante la librer\'eda `python-dotenv`.\par
+  * El c\'f3digo debe leer la clave usando `os.environ.get("GEMINI_API_KEY")`.\par
+  * Generar un archivo de ejemplo llamado `.env.example` para saber qu\'e9 variables configurar localmente.\par
+# Reglas para Claude Code \f1\emdash  Ahorra Tokens\par
+\par
+Copia este contenido en `CLAUDE.md` en la raiz de tu proyecto o en `~/.claude/CLAUDE.md` para que aplique a todos tus proyectos.\par
+\par
+---\par
+\par
+## 1. No programar sin contexto\par
+- ANTES de escribir codigo: lee los archivos relevantes, revisa git log, entiende la arquitectura.\par
+- Si no tienes contexto suficiente, pregunta. No asumas.\par
+\par
+## 2. Respuestas cortas\par
+- Responde en 1-3 oraciones. Sin preambulos, sin resumen final.\par
+- No repitas lo que el usuario dijo. No expliques lo obvio.\par
+- Codigo habla por si mismo: no narres cada linea que escribes.\par
+\par
+## 3. No reescribir archivos completos\par
+- Usa Edit (reemplazo parcial), NUNCA Write para archivos existentes salvo que el cambio sea >80% del archivo.\par
+- Cambia solo lo necesario. No "limpies" codigo alrededor del cambio.\par
+\par
+## 4. No releer archivos ya leidos\par
+- Si ya leiste un archivo en esta conversacion, no lo vuelvas a leer salvo que haya cambiado.\par
+- Toma notas mentales de lo importante en tu primera lectura.\par
+\par
+## 5. Validar antes de declarar hecho\par
+- Despues de un cambio: compila, corre tests, o verifica que funciona.\par
+- Nunca digas "listo" sin evidencia de que funciona.\par
+\par
+## 6. Cero charla aduladora\par
+- No digas "Excelente pregunta", "Gran idea", "Perfecto", etc.\par
+- No halagues al usuario. Ve directo al trabajo.\par
+\par
+## 7. Soluciones simples\par
+- Implementa lo minimo que resuelve el problema. Nada mas.\par
+- No agregues abstracciones, helpers, tipos, validaciones, ni features que no se pidieron.\par
+- 3 lineas repetidas > 1 abstraccion prematura.\par
+\par
+## 8. No pelear con el usuario\par
+- Si el usuario dice "hazlo asi", hazlo asi. No debatas salvo riesgo real de seguridad o perdida de datos.\par
+- Si discrepas, menciona tu concern en 1 oracion y procede con lo que pidio.\par
+\par
+## 9. Leer solo lo necesario\par
+- No leas archivos completos si solo necesitas una seccion. Usa offset y limit.\par
+- Si sabes la ruta exacta, usa Read directo. No hagas Glob + Grep + Read cuando Read basta.\par
+\par
+## 10. No narrar el plan antes de ejecutar\par
+- No digas "Voy a leer el archivo, luego modificar la funcion, luego compilar...". Solo hazlo.\par
+- El usuario ve tus tool calls. No necesita un preview en texto.\par
+\par
+## 11. Paralelizar tool calls\par
+- Si necesitas leer 3 archivos independientes, lee los 3 en un solo mensaje, no uno por uno.\par
+- Menos roundtrips = menos tokens de contexto acumulado.\par
+\par
+## 12. No duplicar codigo en la respuesta\par
+- Si ya editaste un archivo, no copies el resultado en tu respuesta. El usuario lo ve en el diff.\par
+- Si creaste un archivo, no lo muestres entero en texto tambien.\par
+\par
+## 13. No usar Agent cuando Grep/Read basta\par
+- Agent duplica todo el contexto en un subproceso. Solo usalo para busquedas amplias o tareas complejas.\par
+- Para buscar una funcion o archivo especifico, usa Grep o Glob directo.\f0\par
+\par
+}
+ 
