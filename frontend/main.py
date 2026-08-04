@@ -674,8 +674,9 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
     state["serie_actual"] = state.get("serie_actual", 1)
     
     # 1. Uso de Imagen en Bucle (Control ft.Image con Dimensiones Optimizadas)
+    def_src = "/animations/jogging.gif" if os.path.exists("assets/animations/jogging.gif") else f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
     img_animacion = ft.Image(
-        src="/animations/jogging.gif",  # Inicialización obligatoria con animación de calentamiento
+        src=def_src,
         width=350,
         height=180,
         fit=ft.ImageFit.CONTAIN
@@ -751,12 +752,17 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
         lbl_ex_name.value = ex["nombre"]
         lbl_series_reps.value = f"Serie {state['serie_actual']} de {ex['series']} | {ex['repeticiones']} Reps"
         
-        # 2. Estrategia de Fallback Seguro
+        # 2. Estrategia de Fallback Seguro con Detección de Archivos Locales
         anim_id = ex.get("anim") or ex.get("id_animacion_avatar") or ""
-        if not anim_id or anim_id.strip() == "":
-            src_path = "/animations/jogging.gif"  # Calentamiento base por defecto
-        else:
+        local_path = f"assets/animations/{anim_id}.gif" if anim_id else ""
+        
+        if anim_id and os.path.exists(local_path):
             src_path = f"/animations/{anim_id}.gif"
+        else:
+            if os.path.exists("assets/animations/jogging.gif"):
+                src_path = "/animations/jogging.gif"
+            else:
+                src_path = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
             
         img_animacion.src = src_path
         
