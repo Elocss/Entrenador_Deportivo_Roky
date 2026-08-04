@@ -101,7 +101,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
         height=100,
         border_radius=50,
         bgcolor="#161B22",
-        alignment=ft.alignment.center,
+        alignment=ft.alignment.Alignment.CENTER,
         border=ft.Border.all(1, "#1F2937"),
         visible=not state.get("foto_capturada", False)
     )
@@ -191,7 +191,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
 
     btn_registrar = ft.Container(
         content=ft.Text("Registrar", color="#000000", weight=ft.FontWeight.BOLD, size=16),
-        alignment=ft.alignment.center,
+        alignment=ft.alignment.Alignment.CENTER,
         bgcolor="#00FF66",
         height=50,
         border_radius=10,
@@ -278,7 +278,7 @@ def vista_plan(page: ft.Page, state: dict, navegar_a):
                     ft.Divider(height=30, color="transparent"),
                     ft.Container(
                         content=ft.ProgressRing(color="#00FF66", width=60, height=60),
-                        alignment=ft.alignment.center
+                        alignment=ft.alignment.Alignment.CENTER
                     ),
                     ft.Divider(height=20, color="transparent"),
                     lbl_status,
@@ -289,7 +289,7 @@ def vista_plan(page: ft.Page, state: dict, navegar_a):
                 alignment=ft.MainAxisAlignment.CENTER
             ),
             height=550,
-            alignment=ft.alignment.center
+            alignment=ft.alignment.Alignment.CENTER
         )
 
     # Una vez cargado, mostramos el avatar y las tarjetas de plan
@@ -302,7 +302,7 @@ def vista_plan(page: ft.Page, state: dict, navegar_a):
         border_radius=60,
         bgcolor="#0D1117",
         border=ft.Border.all(2, "#00FF66"),
-        alignment=ft.alignment.center
+        alignment=ft.alignment.Alignment.CENTER
     )
     
     cards_container = ft.Column(spacing=10)
@@ -369,7 +369,7 @@ def vista_plan(page: ft.Page, state: dict, navegar_a):
 
     btn_continuar = ft.Container(
         content=ft.Text("Continuar", color="#000000", weight=ft.FontWeight.BOLD, size=16),
-        alignment=ft.alignment.center,
+        alignment=ft.alignment.Alignment.CENTER,
         bgcolor="#00FF66",
         height=50,
         border_radius=10,
@@ -531,7 +531,7 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
 
     btn_empezar = ft.Container(
         content=ft.Text("Empezar Rutina", color="#000000", weight=ft.FontWeight.BOLD, size=16),
-        alignment=ft.alignment.center,
+        alignment=ft.alignment.Alignment.CENTER,
         bgcolor="#00FF66",
         height=50,
         border_radius=10,
@@ -573,7 +573,7 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
                 # Avatar central
                 ft.Container(
                     content=img_avatar,
-                    alignment=ft.alignment.center,
+                    alignment=ft.alignment.Alignment.CENTER,
                     height=140
                 ),
                 
@@ -640,7 +640,7 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
     
     avatar_box = ft.Container(
         content=img_avatar,
-        alignment=ft.alignment.center,
+        alignment=ft.alignment.Alignment.CENTER,
         height=180,
         border_radius=15,
         bgcolor="#161B22",
@@ -763,7 +763,7 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
 
     btn_accion = ft.Container(
         content=ft.Text("Iniciar Serie", color="#000000", weight=ft.FontWeight.BOLD, size=16),
-        alignment=ft.alignment.center,
+        alignment=ft.alignment.Alignment.CENTER,
         bgcolor="#00FF66",
         height=52,
         border_radius=10,
@@ -824,7 +824,7 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
                     bgcolor="#161B22",
                     border_radius=12,
                     border=ft.Border.all(1, "#1F2937"),
-                    alignment=ft.alignment.center
+                    alignment=ft.alignment.Alignment.CENTER
                 ),
                 ft.Divider(height=10, color="transparent"),
                 
