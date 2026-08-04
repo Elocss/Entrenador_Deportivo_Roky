@@ -656,7 +656,8 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
         padding=5
     )
 
-
+# --- VISTA 4: ENTRENAMIENTO ACTIVO ---
+def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
     # Forzar ft.ImageFit a usar strings para máxima compatibilidad con todas las versiones de Flet
     class ImageFitHelper:
         CONTAIN = "contain"
