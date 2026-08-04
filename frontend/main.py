@@ -675,13 +675,44 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
     state["ejercicio_actual"] = state.get("ejercicio_actual", 0)
     state["serie_actual"] = state.get("serie_actual", 1)
     
-    # 1. Uso de Imagen en Bucle (Control ft.Image con Dimensiones Optimizadas)
-    lbl_ex_name = ft.Text("", size=22, weight=ft.FontWeight.BOLD, color="#FFFFFF")
-    lbl_series_reps = ft.Text("", size=15, color="#00F0FF", weight=ft.FontWeight.W_500)
+    # 1. Resolver el ejercicio actual y su imagen para la carga inicial
+    ex_idx = state["ejercicio_actual"]
+    if ex_idx < len(state["ejercicios"]):
+        ex = state["ejercicios"][ex_idx]
+        initial_name = ex["nombre"]
+        initial_reps = f"Serie {state['serie_actual']} de {ex['series']} | {ex['repeticiones']} Reps"
+        
+        anim_id = ex.get("anim") or ex.get("id_animacion_avatar") or ""
+        local_path = f"assets/animations/{anim_id}.gif" if anim_id else ""
+        
+        if anim_id and os.path.exists(local_path):
+            initial_src = f"/animations/{anim_id}.gif"
+            initial_w, initial_h = 350, 180
+        else:
+            if os.path.exists("assets/animations/jogging.gif"):
+                initial_src = "/animations/jogging.gif"
+                initial_w, initial_h = 350, 180
+            else:
+                initial_src = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
+                initial_w, initial_h = 130, 130
+    else:
+        initial_name = ""
+        initial_reps = ""
+        initial_src = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
+        initial_w, initial_h = 130, 130
+
+    # 2. Uso de Imagen en Bucle (Control ft.Image con Dimensiones Optimizadas)
+    lbl_ex_name = ft.Text(initial_name, size=22, weight=ft.FontWeight.BOLD, color="#FFFFFF")
+    lbl_series_reps = ft.Text(initial_reps, size=15, color="#00F0FF", weight=ft.FontWeight.W_500)
     lbl_timer = ft.Text("", size=24, weight=ft.FontWeight.BOLD, color="#00FF66", visible=False)
     
     avatar_box = ft.Container(
-        content=ft.Container(),  # Se rellenará dinámicamente en actualizar_pantalla()
+        content=ft.Image(
+            src=initial_src,
+            width=initial_w,
+            height=initial_h,
+            fit="contain"
+        ),
         alignment=ft.alignment.Alignment.CENTER,
         height=180,
         border_radius=15,
