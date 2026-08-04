@@ -676,11 +676,17 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
     state["serie_actual"] = state.get("serie_actual", 1)
     
     # 1. Uso de Imagen en Bucle (Control ft.Image con Dimensiones Optimizadas)
-    def_src = "/animations/jogging.gif" if os.path.exists("assets/animations/jogging.gif") else f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
+    if os.path.exists("assets/animations/jogging.gif"):
+        def_src = "/animations/jogging.gif"
+        def_w, def_h = 350, 180
+    else:
+        def_src = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
+        def_w, def_h = 130, 130
+        
     img_animacion = ft.Image(
         src=def_src,
-        width=350,
-        height=180,
+        width=def_w,
+        height=def_h,
         fit=ft.ImageFit.CONTAIN
     )
     
@@ -754,17 +760,23 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
         lbl_ex_name.value = ex["nombre"]
         lbl_series_reps.value = f"Serie {state['serie_actual']} de {ex['series']} | {ex['repeticiones']} Reps"
         
-        # 2. Estrategia de Fallback Seguro con Detección de Archivos Locales
+        # 2. Estrategia de Fallback Seguro con Detección de Archivos Locales y Dimensiones Dinámicas
         anim_id = ex.get("anim") or ex.get("id_animacion_avatar") or ""
         local_path = f"assets/animations/{anim_id}.gif" if anim_id else ""
         
         if anim_id and os.path.exists(local_path):
             src_path = f"/animations/{anim_id}.gif"
+            img_animacion.width = 350
+            img_animacion.height = 180
         else:
             if os.path.exists("assets/animations/jogging.gif"):
                 src_path = "/animations/jogging.gif"
+                img_animacion.width = 350
+                img_animacion.height = 180
             else:
                 src_path = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
+                img_animacion.width = 130
+                img_animacion.height = 130
             
         img_animacion.src = src_path
         print(f"[debug] actualizar_pantalla: src_path = {src_path}")
