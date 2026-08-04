@@ -675,6 +675,7 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
     
     # 1. Uso de Imagen en Bucle (Control ft.Image con Dimensiones Optimizadas)
     img_animacion = ft.Image(
+        src="/animations/jogging.gif",  # Inicialización obligatoria con animación de calentamiento
         width=350,
         height=180,
         fit=ft.ImageFit.CONTAIN
