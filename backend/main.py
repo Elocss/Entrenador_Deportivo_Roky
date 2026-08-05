@@ -10,11 +10,30 @@ if parent_dir not in sys.path:
 import json
 import logging
 import requests
+import time
 from typing import Optional, List
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
+
+# Base de datos simulada en memoria para el estado de procesamiento del avatar
+avatar_db = {}
+
+def procesar_foto_pipeline(nombre: str):
+    logger.info(f"[Pipeline] Iniciando OpenCV + MediaPipe para {nombre}...")
+    # Simular tiempo de procesamiento pesado de IA de 5 segundos
+    time.sleep(5.0)
+    
+    # Generar la URL del avatar tipo cómic
+    avatar_seed = nombre.replace(" ", "") or "roky"
+    comic_url = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={avatar_seed}&mood[]=happy"
+    
+    avatar_db[nombre] = {
+        "ready": True,
+        "avatar_comic_url": comic_url
+    }
+    logger.info(f"[Pipeline] Procesamiento completado para {nombre}. Avatar listo en {comic_url}")
 
 # Configurar logs
 logging.basicConfig(level=logging.INFO)
@@ -242,8 +261,8 @@ def generar_rutina_con_gemini(nombre: str, peso: float, altura: float, deporte: 
     return None
 
 # 4. ENDPOINT POST /registro
-@app.post("/registro", response_model=PlanEntrenamientoResponse)
-def registrar_usuario(request: RegistroRequest):
+@app.post("/registro", response_model=PlanEntrenamientoResponse, status_code=201)
+def registrar_usuario(request: RegistroRequest, background_tasks: BackgroundTasks):
     # SEGURIDAD: Validación simple de campos obligatorios
     if not request.nombre.strip():
         raise HTTPException(
@@ -273,6 +292,15 @@ def registrar_usuario(request: RegistroRequest):
         
     logger.info(f"Registro recibido: {request.nombre}, peso: {request.peso}kg, altura: {request.altura}cm, deporte: {request.deporte}")
     
+    # Inicializar estado en la base de datos simulada
+    avatar_db[request.nombre] = {
+        "ready": False,
+        "avatar_comic_url": None
+    }
+    
+    # Delegar el procesamiento pesado de la foto a la tarea en segundo plano
+    background_tasks.add_task(procesar_foto_pipeline, request.nombre)
+    
     # Intentar generar plan con la IA
     plan = generar_rutina_con_gemini(
         nombre=request.nombre,
@@ -293,6 +321,11 @@ def registrar_usuario(request: RegistroRequest):
         )
         
     return plan
+
+@app.get("/registro/status")
+def obtener_estado_avatar(nombre: str):
+    status_info = avatar_db.get(nombre, {"ready": False, "avatar_comic_url": None})
+    return status_info
 
 @app.get("/")
 def read_root():

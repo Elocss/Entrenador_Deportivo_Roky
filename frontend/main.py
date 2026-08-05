@@ -284,61 +284,11 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
 
 # --- VISTA 2: CARGA Y SELECCIÓN DE PLAN ---
 def vista_plan(page: ft.Page, state: dict, navegar_a):
-    # Si aún no se ha completado la generación del avatar, mostramos el loading spinner
-    if not state.get("avatar_generado", False):
-        lbl_status = ft.Text("Escaneando facciones...", color="#8B949E", size=14, text_align=ft.TextAlign.CENTER)
-        bar_loading = ft.ProgressBar(color="#00F0FF", width=250)
-        
-        async def simular_creacion_avatar(e=None):
-            import asyncio
-            pasos = [
-                "Procesando foto de perfil...",
-                "Modelando estructura muscular...",
-                "Aplicando estilo de dibujo Cómic 2D...",
-                "¡Avatar ROKY Creado con Éxito!"
-            ]
-            for paso in pasos:
-                lbl_status.value = paso
-                try:
-                    page.update()
-                except Exception:
-                    return
-                await asyncio.sleep(0.8)
-            
-            state["avatar_generado"] = True
-            try:
-                navegar_a("plan")
-            except Exception as e:
-                import traceback
-                print("Error al navegar a plan:")
-                traceback.print_exc()
-
-        page.run_task(simular_creacion_avatar)
-        
-        return ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Text("IA GENERATIVA ROKY", size=24, weight=ft.FontWeight.BOLD, color="#00F0FF", text_align=ft.TextAlign.CENTER),
-                    ft.Text("Modelando avatar en tiempo real", size=13, color="#8B949E", text_align=ft.TextAlign.CENTER),
-                    ft.Divider(height=30, color="transparent"),
-                    ft.Container(
-                        content=ft.ProgressRing(color="#00FF66", width=60, height=60),
-                        alignment=ft.alignment.Alignment.CENTER
-                    ),
-                    ft.Divider(height=20, color="transparent"),
-                    lbl_status,
-                    bar_loading
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=15,
-                alignment=ft.MainAxisAlignment.CENTER
-            ),
-            height=550,
-            alignment=ft.alignment.Alignment.CENTER
-        )
-
+    # Ya no mostramos la pantalla de carga bloqueante. Se selecciona el plan de inmediato.
+    avatar_seed = state.get('avatar_seed', 'roky')
+    
     # Una vez cargado, mostramos el avatar y las tarjetas de plan
-    avatar_url = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state['avatar_seed']}&mood[]=happy"
+    avatar_url = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={avatar_seed}&mood[]=happy"
     
     avatar_display = ft.Container(
         content=ft.Image(src=avatar_url, width=110, height=110, fit="contain"),
@@ -452,57 +402,132 @@ def vista_plan(page: ft.Page, state: dict, navegar_a):
 
 # --- VISTA 3: SIMULACIÓN DE PROGRESO ---
 def vista_simulacion(page: ft.Page, state: dict, navegar_a):
-    peso_inicial = state["peso"]
-    plan_meses = state["plan_meses"]
-    grasa_inicial = 22.0 if state["deporte"] == "Fitness / Gimnasio" else 18.0
+    peso_inicial = state.get("peso", 70.0)
+    plan_meses = state.get("plan_meses", 3)
+    grasa_inicial = 22.0 if state.get("deporte") == "Fitness / Gimnasio" else 18.0
     
-    avatar_url = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state['avatar_seed']}&mood[]=happy"
-    img_avatar = ft.Image(
-        src=avatar_url,
-        width=130,
-        height=130,
-        fit="contain",
-        animate_scale=ft.Animation(300, "easeOut")
-    )
+    # 1. Definición exacta de las variables y textos
+    lbl_weight = ft.Text(f"{peso_inicial} kg", size=13, weight=ft.FontWeight.BOLD, color="#FFFFFF")
+    lbl_mes_actual = ft.Text(f"Mes 0 de {plan_meses}", size=12, weight=ft.FontWeight.BOLD, color="#FFFFFF")
+    lbl_muscle = ft.Text("+0.0 kg", size=13, weight=ft.FontWeight.BOLD, color="#00FF66")
+    lbl_fat = ft.Text(f"{grasa_inicial}%", size=13, weight=ft.FontWeight.BOLD, color="#00FF66") # Verde neón
     
-    # Controles de Estadísticas
-    lbl_weight = ft.Text(f"{peso_inicial} kg", size=16, weight=ft.FontWeight.BOLD, color="#FFFFFF")
-    lbl_muscle = ft.Text("+0.0 kg", size=16, weight=ft.FontWeight.BOLD, color="#00FF66")
-    lbl_fat = ft.Text(f"{grasa_inicial}%", size=16, weight=ft.FontWeight.BOLD, color="#FF007F")
-    lbl_focus = ft.Text("Acondicionamiento", size=15, weight=ft.FontWeight.BOLD, color="#00F0FF")
-    
+    # Función para crear contenedores flotantes de estadísticas
     def create_stat_box(title, control, icon, color):
         return ft.Container(
             content=ft.Column(
                 controls=[
                     ft.Row([
-                        ft.Icon(icon, size=14, color=color),
-                        ft.Text(title, size=9, color="#8B949E", weight=ft.FontWeight.BOLD)
-                    ], spacing=4),
+                        ft.Icon(icon, size=12, color=color),
+                        ft.Text(title, size=8, color="#8B949E", weight=ft.FontWeight.BOLD)
+                    ], spacing=3),
                     control
                 ],
                 spacing=2,
                 horizontal_alignment=ft.CrossAxisAlignment.START
             ),
             bgcolor="#161B22",
-            padding=8,
+            padding=6,
             border_radius=8,
             border=ft.Border.all(1, "#1F2937"),
-            width=155,
-            height=52
+            width=100,
+            height=58
         )
         
-    box_weight = create_stat_box("PESO ESTIMADO", lbl_weight, ft.Icons.MONITOR_WEIGHT, "#00F0FF")
+    box_weight = create_stat_box("PESO ACTUAL", lbl_weight, ft.Icons.MONITOR_WEIGHT, "#00F0FF")
+    box_mes_actual = create_stat_box("MES ACTUAL", lbl_mes_actual, ft.Icons.CALENDAR_TODAY, "#00F0FF")
     box_muscle = create_stat_box("MÚSCULO GANADO", lbl_muscle, ft.Icons.FITNESS_CENTER, "#00FF66")
-    box_fat = create_stat_box("GRASA CORPORAL", lbl_fat, ft.Icons.PERCENT, "#FF007F")
-    box_focus = create_stat_box("ENFOQUE MENSUAL", lbl_focus, ft.Icons.TRACK_CHANGES, "#00F0FF")
+    box_fat = create_stat_box("GRASA CORPORAL", lbl_fat, ft.Icons.PERCENT, "#00FF66")
+
+    # 2. Componente de Carga y Tarjeta Central del Avatar
+    avatar_loading = ft.Column(
+        controls=[
+            ft.ProgressRing(color="#00FF66", width=40, height=40),
+            ft.Text("Procesando...", size=10, color="#8B949E", weight=ft.FontWeight.BOLD)
+        ],
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        alignment=ft.MainAxisAlignment.CENTER,
+        spacing=8
+    )
+    
+    img_avatar = ft.Image(
+        src=state.get("avatar_comic_url", ""),
+        width=130,
+        height=130,
+        fit="contain",
+        animate_scale=ft.Animation(300, "easeOut")
+    )
+    
+    avatar_card = ft.Container(
+        content=img_avatar if state.get("avatar_comic_url") else avatar_loading,
+        alignment=ft.alignment.Alignment.CENTER,
+        width=140,
+        height=140,
+        border_radius=70,
+        bgcolor="#161B22",
+        border=ft.Border.all(2, "#00FF66" if state.get("avatar_comic_url") else "#00F0FF")
+    )
+
+    # Polling asíncrono para comprobar el estado del avatar en FastAPI
+    def poll_avatar_status():
+        import time
+        import requests
+        nombre_req = state.get("nombre", "")
+        if not nombre_req:
+            return
+            
+        url = f"http://127.0.0.1:8000/registro/status?nombre={nombre_req}"
+        for _ in range(30):  # Limitar a 30 segundos
+            try:
+                response = requests.get(url, timeout=2.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("ready"):
+                        state["avatar_comic_url"] = data.get("avatar_comic_url")
+                        state["avatar_generado"] = True
+                        
+                        # Actualizar la interfaz del avatar
+                        img_avatar.src = state["avatar_comic_url"]
+                        avatar_card.content = img_avatar
+                        avatar_card.border = ft.Border.all(2, "#00FF66")
+                        try:
+                            page.update()
+                        except Exception:
+                            pass
+                        break
+            except Exception as e:
+                print(f"[Polling Error] {e}")
+            time.sleep(1.0)
+
+    # Iniciar polling si el avatar no está listo
+    if not state.get("avatar_generado", False):
+        import threading
+        threading.Thread(target=poll_avatar_status, daemon=True).start()
+
+    # Columnas flotantes a los lados
+    col_left = ft.Column(
+        controls=[box_weight, box_mes_actual],
+        spacing=10,
+        alignment=ft.MainAxisAlignment.CENTER
+    )
+    col_right = ft.Column(
+        controls=[box_muscle, box_fat],
+        spacing=10,
+        alignment=ft.MainAxisAlignment.CENTER
+    )
+    
+    seccion_central = ft.Row(
+        controls=[col_left, avatar_card, col_right],
+        alignment=ft.MainAxisAlignment.CENTER,
+        spacing=10
+    )
 
     exercises_container = ft.Column(spacing=6)
     
     def get_rutina_mes(mes):
         if mes == 0:
             return "Rutina de Entrada", [
-                {"nombre": "Movilidad Articular Articulaciones", "series": 3, "reps": 10},
+                {"nombre": "Movilidad Articular", "series": 3, "reps": 10},
                 {"nombre": "Caminata Moderada", "series": 1, "reps": 15}
             ]
         elif mes <= 3:
@@ -532,18 +557,21 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
         lbl_weight.value = f"{peso_estimado} kg"
         lbl_fat.value = f"{grasa_estimada}%"
         lbl_muscle.value = f"+{musculo_ganado} kg"
+        lbl_mes_actual.value = f"Mes {mes} de {plan_meses}"
+        lbl_slider_mes.value = f"Mes {mes} de {plan_meses}"
         
         state["peso_estimado"] = peso_estimado
         
         fase_title, ejercicios = get_rutina_mes(mes)
-        lbl_focus.value = fase_title
         
-        # Simula tonificación reduciendo el ancho del avatar levemente
-        img_avatar.scale = 1.0 - (mes * 0.015)
-        
+        # Escalar avatar levemente si está cargado
+        if state.get("avatar_comic_url"):
+            img_avatar.scale = 1.0 - (mes * 0.015)
+            
+        # Actualizar ejercicios del panel inferior en tiempo real
         exercises_container.controls.clear()
         exercises_container.controls.append(
-            ft.Text(f"Plan de Trabajo - Mes {mes}", size=12, color="#00FF66", weight=ft.FontWeight.BOLD)
+            ft.Text("Entrenamiento de Hoy", size=12, color="#00FF66", weight=ft.FontWeight.BOLD)
         )
         for ej in ejercicios:
             exercises_container.controls.append(
@@ -556,12 +584,15 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
                     spacing=5
                 )
             )
-            
+
+    # Inicializar estado inicial
     actualizar_simulacion(0)
 
     def on_slider_change(e):
         actualizar_simulacion(int(e.control.value))
         page.update()
+
+    lbl_slider_mes = ft.Text(f"Mes 0 de {plan_meses}", size=12, weight=ft.FontWeight.BOLD, color="#00F0FF")
 
     slider = ft.Slider(
         min=0,
@@ -575,7 +606,7 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
     )
 
     btn_empezar = ft.Container(
-        content=ft.Text("Empezar Rutina", color="#000000", weight=ft.FontWeight.BOLD, size=16),
+        content=ft.Text("Iniciar Rutina", color="#000000", weight=ft.FontWeight.BOLD, size=16),
         alignment=ft.alignment.Alignment.CENTER,
         bgcolor="#00FF66",
         height=50,
@@ -592,7 +623,7 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
     return ft.Container(
         content=ft.Column(
             controls=[
-                # Header
+                # Header superior centralizado
                 ft.Row(
                     controls=[
                         ft.IconButton(
@@ -601,7 +632,7 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
                             icon_size=16,
                             on_click=lambda _: navegar_a("plan")
                         ),
-                        ft.Text("Tu Transformación", size=18, weight=ft.FontWeight.BOLD, color="#FFFFFF"),
+                        ft.Text("Mi Progreso", size=18, weight=ft.FontWeight.BOLD, color="#FFFFFF"),
                         ft.IconButton(
                             icon=ft.Icons.INFO_OUTLINE,
                             icon_color="#00F0FF",
@@ -615,30 +646,27 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
                 ),
                 ft.Divider(color="#1F2937", height=5),
                 
-                # Avatar central
-                ft.Container(
-                    content=img_avatar,
-                    alignment=ft.alignment.Alignment.CENTER,
-                    height=140
-                ),
+                # Sección central simétrica
+                seccion_central,
+                ft.Divider(height=5, color="transparent"),
                 
-                # Bloque de estadísticas
-                ft.Column(
-                    controls=[
-                        ft.Row([box_weight, box_muscle], alignment=ft.MainAxisAlignment.CENTER, spacing=10),
-                        ft.Row([box_fat, box_focus], alignment=ft.MainAxisAlignment.CENTER, spacing=10)
-                    ],
-                    spacing=10
+                # Slider horizontal
+                ft.Container(
+                    content=ft.Column([
+                        ft.Row([
+                            ft.Text("Tu Transformación", size=12, color="#FFFFFF", weight=ft.FontWeight.BOLD),
+                            lbl_slider_mes
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        slider
+                    ], spacing=5),
+                    padding=10,
+                    bgcolor="#161B22",
+                    border_radius=10,
+                    border=ft.Border.all(1, "#1F2937")
                 ),
                 ft.Divider(height=5, color="transparent"),
                 
-                # Slider
-                ft.Column([
-                    ft.Text("Desliza para simular tu progreso físico", size=11, color="#8B949E", weight=ft.FontWeight.BOLD),
-                    slider
-                ], spacing=3, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                
-                # Rutina recomendada
+                # Panel de Control Inferior: Entrenamiento de Hoy
                 ft.Container(
                     content=exercises_container,
                     padding=12,
@@ -647,6 +675,8 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
                     border=ft.Border.all(1, "#1F2937")
                 ),
                 ft.Divider(height=5, color="transparent"),
+                
+                # Botón de Inicio de Rutina
                 btn_empezar
             ],
             spacing=10,
