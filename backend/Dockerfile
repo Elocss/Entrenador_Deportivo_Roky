@@ -15,15 +15,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar requirements.txt e instalar dependencias de Python
-# En este contexto, requirements.txt estará directamente en la raíz si el build se lanza desde la carpeta backend
-COPY requirements.txt /app/backend/
-RUN pip install --no-cache-dir -r /app/backend/requirements.txt
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar todo el contenido del contexto de construcción (que es la carpeta backend) a /app/backend
-COPY . /app/backend
+# Copiar el código de la carpeta backend al directorio de trabajo /app
+COPY . .
 
-# Exponer el puerto por defecto de Cloud Run (8080)
+# Crear un enlace simbólico de 'backend' apuntando al directorio actual (.)
+# Esto permite que las importaciones absolutas del tipo 'from backend.xxx import yyy'
+# sigan funcionando sin problemas al ejecutar uvicorn localmente como 'main:app'
+RUN ln -s . backend
+
+# Exponer el puerto configurado por Cloud Run
 EXPOSE 8080
 
-# Ejecutar FastAPI usando uvicorn con la ruta absoluta del módulo
-CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+# Ejecutar de forma local el archivo main:app
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
