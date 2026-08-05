@@ -192,7 +192,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
         
         def api_call():
             try:
-                url = "http://127.0.0.1:8000/registro"
+                url = "https://run.app/registro"
                 
                 files = {
                     "foto": (foto_name, foto_bytes, "image/jpeg")
@@ -559,7 +559,7 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
         if not nombre_req:
             return
             
-        url = f"http://127.0.0.1:8000/registro/status?nombre={nombre_req}"
+        url = f"https://run.app/registro/status?nombre={nombre_req}"
         for _ in range(30):  # Limitar a 30 segundos
             try:
                 response = requests.get(url, timeout=2.0)

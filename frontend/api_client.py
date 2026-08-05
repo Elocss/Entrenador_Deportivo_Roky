@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 logger = logging.getLogger("roky.api_client")
-BASE_URL = "http://localhost:8000"
+BASE_URL = "https://run.app"
 
 # Token JWT en memoria
 _jwt_token = None
