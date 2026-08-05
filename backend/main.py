@@ -7,6 +7,16 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
+# Si el código se ejecuta directamente en WORKDIR /app en Docker, 'backend' no existirá como carpeta contenedora.
+# Registramos un módulo mock 'backend' en sys.modules redirigiendo las búsquedas al directorio actual.
+try:
+    import backend.database
+except ImportError:
+    import types
+    backend_mock = types.ModuleType('backend')
+    backend_mock.__path__ = [current_dir]
+    sys.modules['backend'] = backend_mock
+
 import json
 import logging
 import requests
