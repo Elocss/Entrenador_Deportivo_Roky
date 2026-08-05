@@ -129,7 +129,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
             # Instanciamos el control temporalmente para captura
             cam = fc.Camera(visible=False)
             page.overlay.append(cam)
-            await page.update_async()
+            page.update()
             
             # Ejecución del disparo nativo de Flet
             foto_bytes = await cam.take_picture()
@@ -157,7 +157,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
             
             lbl_error.value = "Hardware de cámara no disponible. Cargando simulación instantánea."
             lbl_error.color = "#00F0FF"  # Cyan cyberpunk
-            await page.update_async()
+            page.update()
 
         # Renderizar la preview a partir de los bytes obtenidos
         if state.get("foto_bytes"):
@@ -172,7 +172,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
             btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
             btn_photo.icon = ft.Icons.CHECK_CIRCLE
             btn_photo.icon_color = "#00FF66"
-            await page.update_async()
+            page.update()
 
     btn_photo = ft.ElevatedButton(
         content=ft.Text("Capturar Foto Frontal", color="#FFFFFF"),
