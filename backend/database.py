@@ -27,8 +27,13 @@ class MockDocumentReference:
     def set(self, data, merge=True):
         if self.collection_name not in self.mock_db.store:
             self.mock_db.store[self.collection_name] = {}
-        # Guardar datos (simular serialización)
-        cleaned_data = {}
+        
+        # Obtener datos existentes si merge es True
+        existing_data = {}
+        if merge and self.id in self.mock_db.store[self.collection_name]:
+            existing_data = self.mock_db.store[self.collection_name][self.id]
+            
+        cleaned_data = existing_data.copy()
         for k, v in data.items():
             if hasattr(v, 'isoformat'): # Manejo de timestamps
                 cleaned_data[k] = v.isoformat()
@@ -36,7 +41,7 @@ class MockDocumentReference:
                 cleaned_data[k] = v
         self.mock_db.store[self.collection_name][self.id] = cleaned_data
         self.mock_db._save_store()
-        logger.info(f"[MockFirestore] Documento guardado en {self.collection_name}/{self.id}")
+        logger.info(f"[MockFirestore] Documento guardado en {self.collection_name}/{self.id} (merge={merge})")
         return True
 
     def get(self):

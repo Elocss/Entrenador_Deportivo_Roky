@@ -12,10 +12,15 @@ import logging
 import requests
 import time
 from typing import Optional, List
-from fastapi import FastAPI, HTTPException, status, BackgroundTasks
+from fastapi import FastAPI, HTTPException, status, BackgroundTasks, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
+from datetime import datetime
+import uuid
+from backend.database import get_db
+
+db = get_db()
 
 # Base de datos simulada en memoria para el estado de procesamiento del avatar
 avatar_db = {}
@@ -27,12 +32,25 @@ def procesar_foto_pipeline(nombre: str):
     
     # Generar la URL del avatar tipo cómic
     avatar_seed = nombre.replace(" ", "") or "roky"
-    comic_url = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={avatar_seed}&mood[]=happy"
+    comic_url = f"https://api.dicebear.com/7.x/pixel-art/png?seed={avatar_seed}&mood[]=happy"
     
+    # Actualizar estado local en memoria
     avatar_db[nombre] = {
         "ready": True,
         "avatar_comic_url": comic_url
     }
+    
+    # Actualizar Firestore
+    try:
+        doc_id = nombre.strip().lower().replace(" ", "_")
+        db.collection("usuarios").document(doc_id).set({
+            "avatar_ready": True,
+            "avatar_comic_url": comic_url
+        }, merge=True)
+        logger.info(f"[Pipeline] Firestore actualizado para {nombre} con el avatar {comic_url}")
+    except Exception as e:
+        logger.error(f"[Pipeline] Error actualizando Firestore: {e}")
+        
     logger.info(f"[Pipeline] Procesamiento completado para {nombre}. Avatar listo en {comic_url}")
 
 # Configurar logs
@@ -262,68 +280,126 @@ def generar_rutina_con_gemini(nombre: str, peso: float, altura: float, deporte: 
 
 # 4. ENDPOINT POST /registro
 @app.post("/registro", response_model=PlanEntrenamientoResponse, status_code=201)
-def registrar_usuario(request: RegistroRequest, background_tasks: BackgroundTasks):
+def registrar_usuario(
+    background_tasks: BackgroundTasks,
+    nombre: str = Form(...),
+    peso: float = Form(...),
+    altura: float = Form(...),
+    deporte: str = Form(...),
+    plan_meses: int = Form(...),
+    foto: UploadFile = File(...)
+):
     # SEGURIDAD: Validación simple de campos obligatorios
-    if not request.nombre.strip():
+    if not nombre.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="El campo 'nombre' no puede estar vacío."
         )
-    if not request.deporte.strip():
+    if not deporte.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="El campo 'deporte' no puede estar vacío."
         )
-    if request.peso <= 0:
+    if peso <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="El 'peso' debe ser un número positivo mayor a 0."
         )
-    if request.altura <= 0:
+    if altura <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="La 'altura' debe ser un número positivo mayor a 0."
         )
-    if request.plan_meses not in [3, 6, 9]:
+    if plan_meses not in [3, 6, 9]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="El 'plan_meses' debe ser de 3, 6 o 9 meses."
         )
+    if not foto or not foto.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La foto es obligatoria."
+        )
         
-    logger.info(f"Registro recibido: {request.nombre}, peso: {request.peso}kg, altura: {request.altura}cm, deporte: {request.deporte}")
+    logger.info(f"Registro recibido: {nombre}, peso: {peso}kg, altura: {altura}cm, deporte: {deporte}, foto: {foto.filename}")
     
-    # Inicializar estado en la base de datos simulada
-    avatar_db[request.nombre] = {
+    # Inicializar estado en la base de datos simulada con PROCESANDO
+    avatar_db[nombre] = {
         "ready": False,
-        "avatar_comic_url": None
+        "avatar_comic_url": "PROCESANDO"
     }
     
+    # Intentar registrar en Firestore con estado PROCESANDO
+    doc_id = nombre.strip().lower().replace(" ", "_")
+    user_data = {
+        "nombre": nombre,
+        "peso_actual_kg": peso,
+        "altura_cm": altura,
+        "deporte_elegido": deporte,
+        "plan_elegido_meses": plan_meses,
+        "avatar_ready": False,
+        "avatar_comic_url": "PROCESANDO",
+        "fecha_registro": datetime.utcnow().isoformat()
+    }
+    try:
+        db.collection("usuarios").document(doc_id).set(user_data)
+        logger.info(f"Usuario {nombre} registrado en Firestore con ID {doc_id} y avatar 'PROCESANDO'")
+    except Exception as e:
+        logger.error(f"Error al registrar usuario en Firestore: {e}")
+    
     # Delegar el procesamiento pesado de la foto a la tarea en segundo plano
-    background_tasks.add_task(procesar_foto_pipeline, request.nombre)
+    background_tasks.add_task(procesar_foto_pipeline, nombre)
     
     # Intentar generar plan con la IA
     plan = generar_rutina_con_gemini(
-        nombre=request.nombre,
-        peso=request.peso,
-        altura=request.altura,
-        deporte=request.deporte,
-        plan_meses=request.plan_meses
+        nombre=nombre,
+        peso=peso,
+        altura=altura,
+        deporte=deporte,
+        plan_meses=plan_meses
     )
     
     # Si la IA falla o no hay API Key, usar fallback mock
     if not plan:
         plan = generar_plan_mock(
-            nombre=request.nombre,
-            peso=request.peso,
-            altura=request.altura,
-            deporte=request.deporte,
-            plan_meses=request.plan_meses
+            nombre=nombre,
+            peso=peso,
+            altura=altura,
+            deporte=deporte,
+            plan_meses=plan_meses
         )
+        
+    # Guardar plan en Firestore
+    try:
+        bloques_list = plan.get("bloques_mensuales") if isinstance(plan, dict) else plan.dict().get("bloques_mensuales", [])
+        plan_data = {
+            "id_plan": str(uuid.uuid4()),
+            "id_usuario": doc_id,
+            "duracion_total_meses": plan_meses,
+            "bloques_mensuales": bloques_list
+        }
+        db.collection("planes_entrenamiento").document(plan_data["id_plan"]).set(plan_data)
+        logger.info(f"Plan de entrenamiento guardado en Firestore para {nombre}")
+    except Exception as e:
+        logger.error(f"Error al guardar plan en Firestore: {e}")
         
     return plan
 
 @app.get("/registro/status")
 def obtener_estado_avatar(nombre: str):
+    try:
+        doc_id = nombre.strip().lower().replace(" ", "_")
+        doc = db.collection("usuarios").document(doc_id).get()
+        if doc.exists:
+            data = doc.to_dict()
+            return {
+                "ready": data.get("avatar_ready", False),
+                "avatar_comic_url": data.get("avatar_comic_url")
+            }
+    except Exception as e:
+        logger.error(f"Error al leer estado de avatar desde Firestore: {e}")
+        
+    # Fallback local
     status_info = avatar_db.get(nombre, {"ready": False, "avatar_comic_url": None})
     return status_info
 

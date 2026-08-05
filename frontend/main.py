@@ -11,6 +11,14 @@ if current_dir not in sys.path:
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
+def log_debug(message):
+    try:
+        log_path = os.path.join(current_dir, "frontend_debug.log")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}\n")
+    except Exception as e:
+        print(f"Error logging: {e}")
+
 # Intentar importar api_client de manera flexible
 try:
     import api_client
@@ -85,6 +93,8 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
 
     lbl_error = ft.Text(value="", color="#FF3333", size=13, weight=ft.FontWeight.BOLD)
 
+
+
     # Preview y captura de foto
     img_preview = ft.Image(
         src=state.get("foto_url", "https://api.dicebear.com/7.x/pixel-art/svg?seed=roky&mood[]=happy"),
@@ -106,34 +116,63 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
         visible=not state.get("foto_capturada", False)
     )
 
-    file_picker = ft.FilePicker()
-    def on_file_selected(e: ft.FilePickerResultEvent):
-        if e.files:
+    file_picker = state["file_picker"]
+
+    async def capturar_foto(e):
+        log_debug("capturar_foto() disparado por clic del botón.")
+        
+        try:
+            # 1. Intentamos usar la cámara nativa de Flet (flet-camera) para dispositivos reales
+            log_debug("[Camera Init] Intentando usar cámara física nativa...")
+            import flet_camera as fc
+            
+            # Instanciamos el control temporalmente para captura
+            cam = fc.Camera(visible=False)
+            page.overlay.append(cam)
+            await page.update_async()
+            
+            # Ejecución del disparo nativo de Flet
+            foto_bytes = await cam.take_picture()
+            if not foto_bytes:
+                raise Exception("La cámara física no devolvió bytes de imagen.")
+                
             state["foto_capturada"] = True
-            state["foto_url"] = e.files[0].path
-            img_preview.src = e.files[0].path
+            state["foto_name"] = "foto_camara_real.jpg"
+            state["foto_bytes"] = foto_bytes
+            log_debug("[Camera Init] Foto capturada exitosamente con cámara real.")
+            
+        except Exception as err:
+            # 2. Bloque de detección y captura limpia de errores de hardware/permisos/web emulador
+            log_debug(f"[Detección Entorno] Error al acceder a cámara nativa ({err}). Cargando fallback de bytes del atleta...")
+            
+            # Imagen predeterminada en bytes (Simulación de medio cuerpo de atleta en Cyber Dark)
+            import base64
+            mock_bytes = base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+            )
+            
+            state["foto_capturada"] = True
+            state["foto_name"] = "foto_atleta_simulada.png"
+            state["foto_bytes"] = mock_bytes
+            
+            lbl_error.value = "Hardware de cámara no disponible. Cargando simulación instantánea."
+            lbl_error.color = "#00F0FF"  # Cyan cyberpunk
+            await page.update_async()
+
+        # Renderizar la preview a partir de los bytes obtenidos
+        if state.get("foto_bytes"):
+            import base64
+            foto_bytes = state["foto_bytes"]
+            encoded_string = base64.b64encode(foto_bytes).decode('utf-8')
+            state["foto_base64"] = encoded_string
+            img_preview.src_base64 = encoded_string
+            
             img_preview.visible = True
             icon_preview.visible = False
             btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
             btn_photo.icon = ft.Icons.CHECK_CIRCLE
             btn_photo.icon_color = "#00FF66"
-            page.update()
-            
-    file_picker.on_result = on_file_selected
-    page.overlay.append(file_picker)
-
-    def capturar_foto(e):
-        # Simula captura o abre selector de archivos
-        state["foto_capturada"] = True
-        seed = txt_nombre.value.replace(" ", "") if txt_nombre.value else "roky"
-        state["foto_url"] = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={seed}"
-        img_preview.src = state["foto_url"]
-        img_preview.visible = True
-        icon_preview.visible = False
-        btn_photo.content = ft.Text("¡Foto Capturada!", color="#00FF66", weight=ft.FontWeight.BOLD)
-        btn_photo.icon = ft.Icons.CHECK_CIRCLE
-        btn_photo.icon_color = "#00FF66"
-        page.update()
+            await page.update_async()
 
     btn_photo = ft.ElevatedButton(
         content=ft.Text("Capturar Foto Frontal", color="#FFFFFF"),
@@ -147,26 +186,30 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
         on_click=capturar_foto
     )
 
-    def enviar_datos_al_backend(nombre, peso, altura, deporte, foto, plan_meses):
+    def enviar_datos_al_backend(nombre, peso, altura, deporte, foto_bytes, foto_name, plan_meses):
         import requests
         import threading
         
         def api_call():
             try:
                 url = "http://127.0.0.1:8000/registro"
-                payload = {
-                    "nombre": nombre,
-                    "peso": peso,
-                    "altura": altura,
-                    "deporte": deporte,
-                    "foto": foto,
-                    "plan_meses": plan_meses
+                
+                files = {
+                    "foto": (foto_name, foto_bytes, "image/jpeg")
                 }
-                logger_msg = f"[API] Enviando datos a {url}..."
+                data = {
+                    "nombre": nombre,
+                    "peso": str(peso),
+                    "altura": str(altura),
+                    "deporte": deporte,
+                    "plan_meses": str(plan_meses)
+                }
+                
+                logger_msg = f"[API] Enviando datos a {url} (multipart/form-data)..."
                 print(logger_msg)
                 
-                response = requests.post(url, json=payload, timeout=15.0)
-                if response.status_code == 200:
+                response = requests.post(url, data=data, files=files, timeout=15.0)
+                if response.status_code == 201:
                     plan_data = response.json()
                     state["plan_data"] = plan_data
                     print("[API] Rutina de la IA recibida exitosamente del backend.")
@@ -192,44 +235,80 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
         threading.Thread(target=api_call, daemon=True).start()
 
     def on_registrar(e):
-        lbl_error.value = ""
-        if not txt_nombre.value:
-            lbl_error.value = "Por favor ingresa tu nombre."
-            page.update()
-            return
-        
         try:
-            peso = float(txt_peso.value)
-            altura = float(txt_altura.value)
-            if peso <= 0 or altura <= 0:
-                lbl_error.value = "Peso y altura deben ser mayores a 0."
+            lbl_error.value = ""
+            log_debug(f"[Registrar] on_registrar ejecutándose. Nombre={txt_nombre.value}, Peso={txt_peso.value}, Altura={txt_altura.value}")
+            if not txt_nombre.value:
+                lbl_error.value = "Por favor ingresa tu nombre."
                 page.update()
                 return
-        except ValueError:
-            lbl_error.value = "Peso y altura deben ser números."
-            page.update()
-            return
             
-        # Guardar datos en el estado
-        state["nombre"] = txt_nombre.value
-        state["peso"] = peso
-        state["altura"] = altura
-        state["deporte"] = dd_deporte.value
-        state["avatar_seed"] = txt_nombre.value.replace(" ", "") or "roky"
-        
-        # Enviar los datos en segundo plano al backend (puerto 8000)
-        foto_mock = state.get("foto_url", "")
-        enviar_datos_al_backend(
-            nombre=state["nombre"],
-            peso=state["peso"],
-            altura=state["altura"],
-            deporte=state["deporte"],
-            foto=foto_mock,
-            plan_meses=state.get("plan_meses", 3)
-        )
+            try:
+                peso = float(txt_peso.value)
+                altura = float(txt_altura.value)
+                if peso <= 0 or altura <= 0:
+                    lbl_error.value = "Peso y altura deben ser mayores a 0."
+                    page.update()
+                    return
+            except ValueError:
+                lbl_error.value = "Peso y altura deben ser números."
+                page.update()
+                return
                 
-        # Cambiar inmediatamente al estado de la Pantalla 2 ("plan")
-        navegar_a("plan")
+            foto_bytes = state.get("foto_bytes")
+            foto_name = state.get("foto_name")
+            log_debug(f"[Registrar] Datos iniciales de foto: bytes_len={len(foto_bytes) if foto_bytes else 'None'}, name={foto_name}")
+            print(f"[Registrar DEBUG] Validando foto: name={foto_name}, bytes_len={len(foto_bytes) if foto_bytes else 'None'}")
+            
+            if not foto_bytes or not foto_name:
+                # Fallback de último recurso: intentar leer la ruta guardada si existe
+                foto_path = state.get("foto_url")
+                log_debug(f"[Registrar] Intento de fallback con foto_path={foto_path}")
+                if foto_path and os.path.exists(foto_path) and os.path.isfile(foto_path):
+                    try:
+                        with open(foto_path, "rb") as f:
+                            foto_bytes = f.read()
+                        state["foto_bytes"] = foto_bytes
+                        state["foto_name"] = os.path.basename(foto_path)
+                        log_debug(f"[Registrar] Fallback exitoso de lectura: {len(foto_bytes)} bytes de {foto_path}")
+                    except Exception as ex_read:
+                        log_debug(f"[Registrar] Fallback fallo de lectura: {ex_read}")
+                
+                # Volver a verificar
+                foto_bytes = state.get("foto_bytes")
+                foto_name = state.get("foto_name")
+                if not foto_bytes or not foto_name:
+                    log_debug("[Registrar] Activando SIMULACIÓN DE RESPALDO (MOCK) por falta de hardware/bytes reales.")
+                    foto_bytes = b"bytes_de_imagen_de_prueba_roky"
+                    foto_name = "foto_camara_mock.png"
+                    state["foto_bytes"] = foto_bytes
+                    state["foto_name"] = foto_name
+
+            # Guardar datos en el estado
+            state["nombre"] = txt_nombre.value
+            state["peso"] = peso
+            state["altura"] = altura
+            state["deporte"] = dd_deporte.value
+            state["avatar_seed"] = txt_nombre.value.replace(" ", "") or "roky"
+            
+            # Enviar los datos en segundo plano al backend (puerto 8000)
+            enviar_datos_al_backend(
+                nombre=state["nombre"],
+                peso=state["peso"],
+                altura=state["altura"],
+                deporte=state["deporte"],
+                foto_bytes=foto_bytes,
+                foto_name=foto_name,
+                plan_meses=state.get("plan_meses", 3)
+            )
+                     
+            # Cambiar inmediatamente al estado de la Pantalla 2 ("plan")
+            navegar_a("plan")
+        except Exception as err:
+            print(f"[Registrar DEBUG] Error en on_registrar: {err}")
+            lbl_error.value = f"Error al registrar: {err}"
+            page.update()
+
 
     btn_registrar = ft.Container(
         content=ft.Text("Registrar", color="#000000", weight=ft.FontWeight.BOLD, size=16),
@@ -265,7 +344,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     alignment=ft.MainAxisAlignment.CENTER,
                     spacing=15
                 ),
-                ft.Divider(height=10, color="transparent"),
+
                 
                 txt_nombre,
                 ft.Row(controls=[txt_peso, txt_altura], spacing=10),
@@ -411,6 +490,7 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
     lbl_mes_actual = ft.Text(f"Mes 0 de {plan_meses}", size=12, weight=ft.FontWeight.BOLD, color="#FFFFFF")
     lbl_muscle = ft.Text("+0.0 kg", size=13, weight=ft.FontWeight.BOLD, color="#00FF66")
     lbl_fat = ft.Text(f"{grasa_inicial}%", size=13, weight=ft.FontWeight.BOLD, color="#00FF66") # Verde neón
+    lbl_slider_mes = ft.Text(f"Mes 0 de {plan_meses}", size=12, weight=ft.FontWeight.BOLD, color="#00F0FF")
     
     # Función para crear contenedores flotantes de estadísticas
     def create_stat_box(title, control, icon, color):
@@ -450,8 +530,11 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
         spacing=8
     )
     
+    # Evitar renderizar "PROCESANDO" como URL de imagen
+    has_avatar = state.get("avatar_comic_url") and state.get("avatar_comic_url") != "PROCESANDO"
+
     img_avatar = ft.Image(
-        src=state.get("avatar_comic_url", ""),
+        src=state.get("avatar_comic_url", "") if has_avatar else "",
         width=130,
         height=130,
         fit="contain",
@@ -459,13 +542,13 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
     )
     
     avatar_card = ft.Container(
-        content=img_avatar if state.get("avatar_comic_url") else avatar_loading,
+        content=img_avatar if has_avatar else avatar_loading,
         alignment=ft.alignment.Alignment.CENTER,
         width=140,
         height=140,
         border_radius=70,
         bgcolor="#161B22",
-        border=ft.Border.all(2, "#00FF66" if state.get("avatar_comic_url") else "#00F0FF")
+        border=ft.Border.all(2, "#00FF66" if has_avatar else "#00F0FF")
     )
 
     # Polling asíncrono para comprobar el estado del avatar en FastAPI
@@ -592,7 +675,7 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
         actualizar_simulacion(int(e.control.value))
         page.update()
 
-    lbl_slider_mes = ft.Text(f"Mes 0 de {plan_meses}", size=12, weight=ft.FontWeight.BOLD, color="#00F0FF")
+
 
     slider = ft.Slider(
         min=0,
@@ -963,6 +1046,10 @@ def main(page: ft.Page):
         "serie_actual": 1
     }
 
+    file_picker = ft.FilePicker()
+    page.overlay.append(file_picker)
+    state["file_picker"] = file_picker
+
     # Contenedor dinámico principal
     main_container = ft.Container(expand=True)
 
@@ -1009,4 +1096,4 @@ def main(page: ft.Page):
     navegar_a("registro")
 
 if __name__ == "__main__":
-    ft.app(target=main, assets_dir="assets", view=ft.AppView.WEB_BROWSER, port=8501, host="0.0.0.0")
+    ft.app(target=main, assets_dir="assets", view=ft.AppView.WEB_BROWSER, port=8501, host="127.0.0.1")
