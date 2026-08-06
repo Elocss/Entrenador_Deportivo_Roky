@@ -28,9 +28,12 @@ from pydantic import BaseModel, Field
 import uvicorn
 from datetime import datetime
 import uuid
-from backend.database import get_db
-
 db = get_db()
+
+try:
+    from backend.services.ia_service import generar_plan_entrenamiento_ia
+except ImportError:
+    from services.ia_service import generar_plan_entrenamiento_ia
 
 # Base de datos simulada en memoria para el estado de procesamiento del avatar
 avatar_db = {}
@@ -289,8 +292,8 @@ def generar_rutina_con_gemini(nombre: str, peso: float, altura: float, deporte: 
     return None
 
 # 4. ENDPOINT POST /registro
-@app.post("/registro", response_model=PlanEntrenamientoResponse, status_code=201)
-def registrar_usuario(
+@app.post("/registro", response_model=dict, status_code=201)
+async def registrar_usuario(
     background_tasks: BackgroundTasks,
     nombre: str = Form(...),
     peso: float = Form(...),
@@ -360,36 +363,27 @@ def registrar_usuario(
     # Delegar el procesamiento pesado de la foto a la tarea en segundo plano
     background_tasks.add_task(procesar_foto_pipeline, nombre)
     
-    # Intentar generar plan con la IA
-    plan = generar_rutina_con_gemini(
+    # Intentar generar plan con la IA de Gemini (nuevo ia_service)
+    plan = await generar_plan_entrenamiento_ia(
         nombre=nombre,
         peso=peso,
-        altura=altura,
         deporte=deporte,
         plan_meses=plan_meses
     )
-    
-    # Si la IA falla o no hay API Key, usar fallback mock
-    if not plan:
-        plan = generar_plan_mock(
-            nombre=nombre,
-            peso=peso,
-            altura=altura,
-            deporte=deporte,
-            plan_meses=plan_meses
-        )
         
-    # Guardar plan en Firestore
+    # Guardar plan en Firestore con la nueva estructura
     try:
-        bloques_list = plan.get("bloques_mensuales") if isinstance(plan, dict) else plan.dict().get("bloques_mensuales", [])
+        id_plan = str(uuid.uuid4())
         plan_data = {
-            "id_plan": str(uuid.uuid4()),
+            "id_plan": id_plan,
             "id_usuario": doc_id,
+            "nombre_usuario": nombre,
             "duracion_total_meses": plan_meses,
-            "bloques_mensuales": bloques_list
+            "proyeccion_fisica": plan.get("proyeccion_fisica", []),
+            "bloques_entrenamiento": plan.get("bloques_entrenamiento", [])
         }
-        db.collection("planes_entrenamiento").document(plan_data["id_plan"]).set(plan_data)
-        logger.info(f"Plan de entrenamiento guardado en Firestore para {nombre}")
+        db.collection("planes_entrenamiento").document(id_plan).set(plan_data)
+        logger.info(f"Plan de entrenamiento guardado en Firestore para {nombre} con ID {id_plan}")
     except Exception as e:
         logger.error(f"Error al guardar plan en Firestore: {e}")
         

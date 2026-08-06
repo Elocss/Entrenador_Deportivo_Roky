@@ -8,6 +8,34 @@ def imagen_a_base64(ruta_archivo):
     with open(ruta_archivo, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
+def map_exercise_to_anim(nombre):
+    nombre_lower = nombre.lower()
+    if "sentadilla" in nombre_lower or "squat" in nombre_lower:
+        return "squats"
+    elif "flexion" in nombre_lower or "pushup" in nombre_lower:
+        return "pushups"
+    elif "plancha" in nombre_lower or "plank" in nombre_lower:
+        return "plank"
+    elif "hombro" in nombre_lower or "press" in nombre_lower:
+        return "shoulder_press"
+    elif "remo" in nombre_lower or "row" in nombre_lower:
+        return "dumbbell_row"
+    elif "zancada" in nombre_lower or "lunge" in nombre_lower:
+        return "lunges"
+    elif "puente" in nombre_lower or "glute" in nombre_lower:
+        return "glute_bridge"
+    elif "tijera" in nombre_lower or "scissor" in nombre_lower:
+        return "scissors"
+    elif "trote" in nombre_lower or "jogging" in nombre_lower:
+        return "jogging"
+    elif "correr" in nombre_lower or "sprinting" in nombre_lower:
+        return "sprinting"
+    elif "payaso" in nombre_lower or "jacks" in nombre_lower:
+        return "jumping_jacks"
+    elif "pantorrilla" in nombre_lower or "calf" in nombre_lower:
+        return "calf_raises"
+    return "squats"
+
 # Configuración de rutas de importación para robustez local
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -479,14 +507,31 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     if "bloques_mensuales" in plan_data and len(plan_data["bloques_mensuales"]) > 0:
                         bloque1 = plan_data["bloques_mensuales"][0]
                         for rutina in bloque1.get("rutina_semanal", []):
-                            if rutina.get("dia") == "Lunes":
+                            if "Lunes" in rutina.get("dia", ""):
                                 state["ejercicios"] = [
                                     {
                                         "nombre": ej["nombre"],
                                         "series": ej["series"],
                                         "repeticiones": ej["repeticiones"],
-                                        "anim": ej["id_animacion_avatar"]
+                                        "anim": ej.get("id_animacion_avatar", "squats")
                                     } for ej in rutina.get("ejercicios", [])
+                                ]
+                    elif "bloques_entrenamiento" in plan_data and len(plan_data["bloques_entrenamiento"]) > 0:
+                        bloque1 = plan_data["bloques_entrenamiento"][0]
+                        semanas = bloque1.get("semanas", [])
+                        if semanas:
+                            semana1 = semanas[0]
+                            dias = semana1.get("dias", [])
+                            if dias:
+                                # Agarrar el primer día disponible
+                                dia1 = dias[0]
+                                state["ejercicios"] = [
+                                    {
+                                        "nombre": ej["nombre"],
+                                        "series": ej["series"],
+                                        "repeticiones": ej.get("repeticiones", 12),
+                                        "anim": map_exercise_to_anim(ej["nombre"])
+                                    } for ej in dia1.get("ejercicios", [])
                                 ]
                 else:
                     print(f"[API] Error del backend ({response.status_code}): {response.text}")
@@ -900,6 +945,28 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
     exercises_container = ft.Column(spacing=6)
     
     def get_rutina_mes(mes):
+        # Intentar leer desde plan_data primero
+        plan_data = state.get("plan_data")
+        if plan_data and "bloques_entrenamiento" in plan_data:
+            bloques = plan_data["bloques_entrenamiento"]
+            for b in bloques:
+                if b.get("mes") == mes:
+                    # Encontrar el primer día con ejercicios
+                    semanas = b.get("semanas", [])
+                    if semanas:
+                        dias = semanas[0].get("dias", [])
+                        if dias:
+                            dia1 = dias[0]
+                            exs = []
+                            for ej in dia1.get("ejercicios", []):
+                                exs.append({
+                                    "nombre": ej.get("nombre"),
+                                    "series": ej.get("series", 4),
+                                    "reps": ej.get("repeticiones", 12)
+                                })
+                            return b.get("enfoque_mensual", f"Fase {mes}"), exs
+                            
+        # Fallback al hardcode
         if mes == 0:
             return "Rutina de Entrada", [
                 {"nombre": "Movilidad Articular", "series": 3, "reps": 10},
@@ -925,9 +992,23 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
             ]
 
     def actualizar_simulacion(mes):
+        # Valores por defecto
         peso_estimado = round(peso_inicial - (mes * 0.8), 1)
         grasa_estimada = round(max(5.0, grasa_inicial - (mes * 0.6)), 1)
         musculo_ganado = round(mes * 0.4, 1)
+        
+        # Intentar extraer de la proyección física real de la IA
+        plan_data = state.get("plan_data")
+        if plan_data and "proyeccion_fisica" in plan_data:
+            proy = plan_data["proyeccion_fisica"]
+            for p in proy:
+                if p.get("mes") == mes:
+                    peso_estimado = p.get("peso_estimado_kg", peso_estimado)
+                    # Estimación aproximada para grasa y músculo basadas en la pérdida real de peso
+                    diff_peso = peso_inicial - peso_estimado
+                    grasa_estimada = round(max(5.0, grasa_inicial - (diff_peso * 0.7)), 1)
+                    musculo_ganado = round(max(0.0, diff_peso * 0.3 + mes * 0.2), 1)
+                    break
         
         lbl_weight.value = f"{peso_estimado} kg"
         lbl_fat.value = f"{grasa_estimada}%"
