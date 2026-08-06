@@ -527,35 +527,26 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     print("[API] Rutina de la IA recibida exitosamente del backend.")
                     
                     # Cargar ejercicios de la IA en el estado para el entrenamiento activo si están disponibles
-                    if "bloques_mensuales" in plan_data and len(plan_data["bloques_mensuales"]) > 0:
-                        bloque1 = plan_data["bloques_mensuales"][0]
-                        for rutina in bloque1.get("rutina_semanal", []):
-                            if "Lunes" in rutina.get("dia", ""):
-                                state["ejercicios"] = [
-                                    {
-                                        "nombre": ej["nombre"],
-                                        "series": ej["series"],
-                                        "repeticiones": ej["repeticiones"],
-                                        "anim": ej.get("id_animacion_avatar", "squats")
-                                    } for ej in rutina.get("ejercicios", [])
-                                ]
-                    elif "bloques_entrenamiento" in plan_data and len(plan_data["bloques_entrenamiento"]) > 0:
+                    if plan_data and "bloques_entrenamiento" in plan_data and len(plan_data["bloques_entrenamiento"]) > 0:
                         bloque1 = plan_data["bloques_entrenamiento"][0]
-                        semanas = bloque1.get("semanas", [])
-                        if semanas:
-                            semana1 = semanas[0]
-                            dias = semana1.get("dias", [])
-                            if dias:
-                                # Agarrar el primer día disponible
-                                dia1 = dias[0]
+                        # Buscamos las semanas y los días de forma dinámica sin harcodear "Lunes"
+                        if "semanas" in bloque1 and len(bloque1["semanas"]) > 0:
+                            semana1 = bloque1["semanas"][0]
+                            if "dias" in semana1 and len(semana1["dias"]) > 0:
+                                dia1 = semana1["dias"][0]
+                                # Cargamos los ejercicios reales en el estado
+                                ej_raw = dia1.get("ejercicios", [])
                                 state["ejercicios"] = [
                                     {
                                         "nombre": ej["nombre"],
                                         "series": ej["series"],
                                         "repeticiones": ej.get("repeticiones", 12),
                                         "anim": map_exercise_to_anim(ej["nombre"])
-                                    } for ej in dia1.get("ejercicios", [])
+                                    } for ej in ej_raw
                                 ]
+                                print(f"[INGENIERÍA API] Ejercicios de la IA cargados con éxito: {state['ejercicios']}")
+                    else:
+                        print("[ERROR LLAVES API] El JSON llegó con estas llaves:", plan_data.keys() if plan_data else "None")
                 else:
                     state["loading_plan"] = False
                     print(f"[API] Error del backend ({response.status_code}): {response.text}")
@@ -661,22 +652,26 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     
                     # Cargar ejercicios de la IA en el estado para el entrenamiento activo si están disponibles
                     plan_data = page.data
-                    if "bloques_entrenamiento" in plan_data and len(plan_data["bloques_entrenamiento"]) > 0:
+                    if plan_data and "bloques_entrenamiento" in plan_data and len(plan_data["bloques_entrenamiento"]) > 0:
                         bloque1 = plan_data["bloques_entrenamiento"][0]
-                        semanas = bloque1.get("semanas", [])
-                        if semanas:
-                            semana1 = semanas[0]
-                            dias = semana1.get("dias", [])
-                            if dias:
-                                dia1 = dias[0]
+                        # Buscamos las semanas y los días de forma dinámica sin harcodear "Lunes"
+                        if "semanas" in bloque1 and len(bloque1["semanas"]) > 0:
+                            semana1 = bloque1["semanas"][0]
+                            if "dias" in semana1 and len(semana1["dias"]) > 0:
+                                dia1 = semana1["dias"][0]
+                                # Cargamos los ejercicios reales en el estado
+                                ej_raw = dia1.get("ejercicios", [])
                                 state["ejercicios"] = [
                                     {
                                         "nombre": ej["nombre"],
                                         "series": ej["series"],
                                         "repeticiones": ej.get("repeticiones", 12),
                                         "anim": map_exercise_to_anim(ej["nombre"])
-                                    } for ej in dia1.get("ejercicios", [])
+                                    } for ej in ej_raw
                                 ]
+                                print(f"[INGENIERÍA] Ejercicios de la IA cargados con éxito: {state['ejercicios']}")
+                    else:
+                        print("[ERROR LLAVES] El JSON llegó con estas llaves:", plan_data.keys() if plan_data else "None")
                 else:
                      print(f"--- [ERROR DE RED INGENIERÍA]: Status Code {response.status_code} - {response.text} ---")
             except Exception as e:
