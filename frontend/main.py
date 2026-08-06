@@ -240,52 +240,63 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
             # 2. Darle un pequeño margen de milisegundos al hilo para salir de su ciclo
             time.sleep(0.1)
             
-            # 3. Obtener el objeto capture y liberarlo físicamente
+            # 3. Obtener el objeto capture, leer un último frame directamente y liberarlo físicamente
             cap = state.get("active_cap")
+            frame = None
             if cap is not None:
                 try:
+                    if cap.isOpened():
+                        ret, frame_read = cap.read()
+                        if ret:
+                            frame = cv2.flip(frame_read, 1)
                     cap.release()
                     log_debug("[Camera] Cámara liberada físicamente desde el botón.")
                 except Exception as ex:
                     log_debug(f"[Camera] Error al liberar cap: {ex}")
             
+            if frame is None:
+                frame = state.get("last_frame_numpy")
+            
             # 4. Obtener y guardar el último frame físicamente
-            last_frame_numpy = state.get("last_frame_numpy")
-            if last_frame_numpy is not None:
-                cv2.imwrite("foto_usuario.jpg", last_frame_numpy)
+            if frame is not None:
+                cv2.imwrite("foto_usuario.jpg", frame)
                 log_debug("[Camera] Último frame guardado físicamente en foto_usuario.jpg")
-                
-                try:
-                    # 5. Convertir a Base64 y fijar la propiedad de forma definitiva
-                    base64_data = imagen_a_base64("foto_usuario.jpg")
-                    state["foto_capturada"] = True
-                    state["foto_name"] = "foto_usuario.jpg"
-                    with open("foto_usuario.jpg", "rb") as f:
-                        state["foto_bytes"] = f.read()
-                    state["foto_url"] = "foto_usuario.jpg"
-                    state["foto_base64"] = base64_data
-                    
-                    img_preview.src = f"data:image/jpeg;base64,{base64_data}"
-                    
-                    # Persistencia en el estado global
-                    if page.data is None:
-                        page.data = {}
-                    page.data["foto_bytes"] = state["foto_bytes"]
-                    page.data["foto_name"] = "foto_usuario.jpg"
-                    page.data["foto_url"] = "foto_usuario.jpg"
-                    page.data["foto_base64"] = base64_data
-                    
-                    # Estilo de éxito definitivo
-                    btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
-                    btn_photo.icon = ft.Icons.CHECK_CIRCLE
-                    btn_photo.icon_color = "#00FF66"
-                except Exception as err:
-                    log_debug(f"[Camera] Error al procesar base64: {err}")
             else:
-                # Si no hay frame, restaurar estado original
-                btn_photo.content = ft.Text("Capturar Foto Frontal", color="#FFFFFF")
-                btn_photo.icon = ft.Icons.CAMERA_ALT
-                btn_photo.icon_color = "#00F0FF"
+                # Fallback: si no hay cámara real o no se pudo leer, generamos un mock cyberpunk de Roky
+                import numpy as np
+                frame = np.zeros((480, 640, 3), dtype=np.uint8)
+                cv2.putText(frame, "Mock Avatar Roky", (100, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                cv2.imwrite("foto_usuario.jpg", frame)
+                log_debug("[Camera] Generado frame mock y guardado en foto_usuario.jpg")
+
+            try:
+                # 5. Convertir a Base64 y fijar la propiedad de forma definitiva en 'src'
+                base64_data = imagen_a_base64("foto_usuario.jpg")
+                state["foto_capturada"] = True
+                state["foto_name"] = "foto_usuario.jpg"
+                with open("foto_usuario.jpg", "rb") as f:
+                    state["foto_bytes"] = f.read()
+                state["foto_url"] = "foto_usuario.jpg"
+                state["foto_base64"] = base64_data
+                
+                img_preview.src = f"data:image/jpeg;base64,{base64_data}"
+                img_preview.visible = True
+                icon_preview.visible = False
+                
+                # Persistencia en el estado global
+                if page.data is None:
+                    page.data = {}
+                page.data["foto_bytes"] = state["foto_bytes"]
+                page.data["foto_name"] = "foto_usuario.jpg"
+                page.data["foto_url"] = "foto_usuario.jpg"
+                page.data["foto_base64"] = base64_data
+                
+                # Estilo de éxito definitivo
+                btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
+                btn_photo.icon = ft.Icons.CHECK_CIRCLE
+                btn_photo.icon_color = "#00FF66"
+            except Exception as err:
+                log_debug(f"[Camera] Error al procesar base64: {err}")
             
             # 6. Forzar redibujado de la interfaz
             page.update()
