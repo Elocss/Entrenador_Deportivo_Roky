@@ -119,106 +119,134 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
     file_picker = state["file_picker"]
 
     async def capturar_foto(e):
-        log_debug("capturar_foto() disparado por clic del botón con OpenCV.")
-        
-        # 1. REVISIÓN DEL ÍNDICE DE CÁMARA (Bucle de índices [0, 1, 2] con OpenCV)
         import cv2
-        cap = None
-        cam_index_worked = -1
+        import threading
+        import base64
+        import time
+
+        # Si la cámara ya está corriendo, el botón actúa como "Capturar Ahora"
+        if state.get("camera_running", False):
+            log_debug("[Camera] Clic en 'Capturar Ahora'. Deteniendo transmisión...")
+            state["camera_running"] = False
+            return
+
+        # Si no está corriendo, iniciamos la cámara en un hilo secundario
+        log_debug("[Camera] Iniciando transmisión en vivo...")
+        state["camera_running"] = True
         
-        for idx in [0, 1, 2]:
-            try:
-                log_debug(f"[OpenCV] Intentando inicializar cámara en índice {idx}...")
-                cap = cv2.VideoCapture(idx)
-                if cap is not None and cap.isOpened():
-                    cam_index_worked = idx
-                    log_debug(f"[OpenCV] Cámara abierta con éxito en índice {idx}")
-                    break
-                else:
+        # Cambiamos el texto del botón a "Capturar Ahora" y modificamos su color para denotar acción
+        btn_photo.content = ft.Text("Capturar Ahora", color="#FFFFFF", weight=ft.FontWeight.BOLD)
+        btn_photo.icon = ft.Icons.CAMERA
+        btn_photo.icon_color = "#FF007F"  # Rosa/Fucsia Cyberpunk
+        page.update()
+
+        def stream_camera():
+            cap = None
+            cam_index_worked = -1
+            
+            # 1. BUCLE DE PRUEBA DE ÍNDICES [0, 1, 2]
+            for idx in [0, 1, 2]:
+                try:
+                    log_debug(f"[Camera Thread] Probando índice {idx}...")
+                    cap = cv2.VideoCapture(idx)
+                    if cap is not None and cap.isOpened():
+                        cam_index_worked = idx
+                        break
+                    else:
+                        if cap is not None:
+                            cap.release()
+                        cap = None
+                except Exception as ex:
+                    log_debug(f"[Camera Thread] Fallo en índice {idx}: {ex}")
                     if cap is not None:
                         cap.release()
                     cap = None
-            except Exception as cam_err:
-                log_debug(f"[OpenCV] Fallo al probar índice {idx}: {cam_err}")
-                if cap is not None:
-                    cap.release()
-                cap = None
-
-        if cap is not None and cap.isOpened() and cam_index_worked != -1:
-            try:
-                # Capturar el fotograma
-                ret, frame = cap.read()
-                if ret:
-                    # Codificar fotograma a JPEG
-                    _, buffer = cv2.imencode('.jpg', frame)
-                    foto_bytes = buffer.tobytes()
-                    
-                    state["foto_capturada"] = True
-                    state["foto_name"] = "foto_camara_local.jpg"
-                    state["foto_bytes"] = foto_bytes
-                    state["foto_url"] = "foto_camara_local.jpg"
-                    
-                    # Convertir a base64 para vista previa
-                    import base64
-                    encoded_string = base64.b64encode(foto_bytes).decode('utf-8')
-                    state["foto_base64"] = encoded_string
-                    img_preview.src_base64 = encoded_string
-                    img_preview.visible = True
-                    icon_preview.visible = False
-                    
-                    btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
-                    btn_photo.icon = ft.Icons.CHECK_CIRCLE
-                    btn_photo.icon_color = "#00FF66"
-                    
-                    # Restaurar botón de upload por si acaso
-                    btn_upload.content = ft.Text("Subir Foto desde Archivo", color="#FFFFFF")
-                    btn_upload.icon = ft.Icons.UPLOAD_FILE
-                    btn_upload.icon_color = "#00F0FF"
-                    
-                    page.update()
-                else:
-                    raise Exception("El sensor no pudo recuperar el fotograma de imagen.")
-            except Exception as run_err:
-                log_debug(f"[OpenCV] Error de lectura de flujo de video: {run_err}")
+            
+            if cap is None or not cap.isOpened():
+                log_debug("[Camera Thread] No se pudo abrir ninguna cámara activa.")
+                state["camera_running"] = False
+                
+                # Restaurar botón
+                btn_photo.content = ft.Text("Capturar Foto Frontal", color="#FFFFFF")
+                btn_photo.icon = ft.Icons.CAMERA_ALT
+                btn_photo.icon_color = "#00F0FF"
+                
+                # 2. MANEJO DE ERRORES VISUAL: SnackBar
                 page.snack_bar = ft.SnackBar(
-                    content=ft.Text(f"Error al leer flujo de cámara: {run_err}", color="#FFFFFF"),
-                    bgcolor="#FF3333"
+                    content=ft.Text("Error: No se detectó ninguna cámara activa. Verifica los permisos de tu terminal.", color="#FFFFFF"),
+                    bgcolor="#FF3333",
+                    duration=4000
                 )
                 page.snack_bar.open = True
                 page.update()
-            finally:
-                cap.release()
-        else:
-            # 2. MANEJO DE ERRORES VISUAL en FLET (Banner o SnackBar)
-            log_debug("[OpenCV Fail] No se pudo inicializar ninguna cámara en los índices [0, 1, 2]")
+                return
+
+            log_debug(f"[Camera Thread] Transmisión en vivo iniciada (índice {cam_index_worked}).")
             
-            # Cargar fallback automático silencioso para evitar que el estado quede en blanco
-            import base64
-            mock_bytes = base64.b64decode(
-                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
-            )
-            state["foto_capturada"] = True
-            state["foto_name"] = "foto_atleta_simulada.png"
-            state["foto_bytes"] = mock_bytes
-            state["foto_url"] = "foto_atleta_simulada.png"
-            
-            encoded_string = base64.b64encode(mock_bytes).decode('utf-8')
-            state["foto_base64"] = encoded_string
-            img_preview.src_base64 = encoded_string
+            # Cambiar visibilidad de preview
             img_preview.visible = True
             icon_preview.visible = False
-            
-            # Mostrar SnackBar de alerta de error
-            page.snack_bar = ft.SnackBar(
-                content=ft.Text("Error: No se detectó ninguna cámara activa. Verifica los permisos de tu terminal.", color="#FFFFFF"),
-                bgcolor="#FF3333",
-                duration=4000
-            )
-            page.snack_bar.open = True
             page.update()
+
+            try:
+                # Bucle de lectura continua
+                while state.get("camera_running", False):
+                    ret, frame = cap.read()
+                    if not ret:
+                        log_debug("[Camera Thread] Error de lectura del frame.")
+                        break
+                    
+                    # Voltear frame para efecto espejo
+                    frame_mirror = cv2.flip(frame, 1)
+                    
+                    # Codificar fotograma a JPG
+                    _, buffer = cv2.imencode('.jpg', frame_mirror)
+                    frame_bytes = buffer.tobytes()
+                    state["last_frame"] = frame_bytes
+                    
+                    # Convertir a base64 y transmitir en vivo a Flet
+                    encoded_string = base64.b64encode(frame_bytes).decode('utf-8')
+                    img_preview.src_base64 = encoded_string
+                    page.update()
+                    
+                    # Control de refresco (~30 fps) para evitar uso excesivo de CPU
+                    time.sleep(0.03)
+                    
+            except Exception as loop_err:
+                log_debug(f"[Camera Thread] Excepción en bucle de streaming: {loop_err}")
+            finally:
+                cap.release()
+                log_debug("[Camera Thread] Cámara liberada de forma segura.")
+                
+                # Al salir del bucle (al presionar "Capturar Ahora"), guardamos el último frame
+                last_frame = state.get("last_frame")
+                if last_frame:
+                    state["foto_capturada"] = True
+                    state["foto_name"] = "foto_usuario.jpg"
+                    state["foto_bytes"] = last_frame
+                    state["foto_url"] = "foto_usuario.jpg"
+                    
+                    # Estilo de éxito definitivo
+                    btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
+                    btn_photo.icon = ft.Icons.CHECK_CIRCLE
+                    btn_photo.icon_color = "#00FF66"
+                else:
+                    # Si no hay frame, restaurar estado original
+                    btn_photo.content = ft.Text("Capturar Foto Frontal", color="#FFFFFF")
+                    btn_photo.icon = ft.Icons.CAMERA_ALT
+                    btn_photo.icon_color = "#00F0FF"
+                
+                state["camera_running"] = False
+                page.update()
+
+        # Iniciar transmisión en hilo secundario (threading)
+        threading.Thread(target=stream_camera, daemon=True).start()
 
     async def subir_foto_archivo(e):
         log_debug("subir_foto_archivo() disparado por clic del botón.")
+        # Detener streaming de cámara en caso de que esté activo
+        state["camera_running"] = False
+        
         try:
             if file_picker not in page.overlay:
                 page.overlay.append(file_picker)
@@ -231,7 +259,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
             
             if files and len(files) > 0:
                 file_info = files[0]
-                log_debug(f"[FilePicker] Selección de archivo: name={file_info.name}, path={file_info.path}")
+                log_debug(f"[FilePicker] Selección: name={file_info.name}, path={file_info.path}")
                 
                 foto_bytes = file_info.bytes
                 if not foto_bytes and file_info.path:
@@ -265,7 +293,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     
                     page.update()
                 else:
-                    raise Exception("No se pudieron leer los bytes de la imagen seleccionada.")
+                    raise Exception("No se pudieron extraer los bytes de la imagen.")
         except Exception as file_err:
             log_debug(f"[FilePicker Error] {file_err}")
             page.snack_bar = ft.SnackBar(
