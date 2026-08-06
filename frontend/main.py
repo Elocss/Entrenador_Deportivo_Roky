@@ -150,6 +150,14 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     state["foto_base64"] = encoded_string
                     img_preview.src = f"data:image/jpeg;base64,{encoded_string}"
                     
+                    # Persistencia en el estado global
+                    if page.data is None:
+                        page.data = {}
+                    page.data["foto_bytes"] = foto_bytes
+                    page.data["foto_name"] = "foto_usuario.jpg"
+                    page.data["foto_url"] = "foto_usuario.jpg"
+                    page.data["foto_base64"] = encoded_string
+                    
                     img_preview.visible = True
                     icon_preview.visible = False
                     
@@ -229,6 +237,14 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     state["foto_base64"] = base64_data
                     
                     img_preview.src = f"data:image/jpeg;base64,{base64_data}"
+                    
+                    # Persistencia en el estado global
+                    if page.data is None:
+                        page.data = {}
+                    page.data["foto_bytes"] = state["foto_bytes"]
+                    page.data["foto_name"] = "foto_usuario.jpg"
+                    page.data["foto_url"] = "foto_usuario.jpg"
+                    page.data["foto_base64"] = base64_data
                     
                     # Estilo de éxito definitivo
                     btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
@@ -407,21 +423,53 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
             try:
                 url = "https://run.app/registro"
                 
-                files = {
-                    "foto": (foto_name, foto_bytes, "image/jpeg")
-                }
-                data = {
-                    "nombre": nombre,
-                    "peso": str(peso),
-                    "altura": str(altura),
-                    "deporte": deporte,
-                    "plan_meses": str(plan_meses)
-                }
+                # Intentar abrir la foto físicamente del disco
+                ruta_foto = "foto_usuario.jpg"
+                if page.data and page.data.get("foto_url"):
+                    ruta_foto = page.data.get("foto_url")
+                elif state.get("foto_url"):
+                    ruta_foto = state.get("foto_url")
+                    
+                import os
+                # Si el archivo físico no existe, lo creamos a partir de los bytes para tener el "archivo real"
+                if not os.path.exists(ruta_foto) and foto_bytes:
+                    try:
+                        with open(ruta_foto, "wb") as f_temp:
+                            f_temp.write(foto_bytes)
+                    except Exception as w_err:
+                        log_debug(f"[API] No se pudo escribir archivo temporal para envío: {w_err}")
                 
-                logger_msg = f"[API] Enviando datos a {url} (multipart/form-data)..."
+                logger_msg = f"[API] Enviando datos a {url} (multipart/form-data) leyendo físicamente de {ruta_foto}..."
+                log_debug(logger_msg)
                 print(logger_msg)
                 
-                response = requests.post(url, data=data, files=files, timeout=15.0)
+                try:
+                    with open(ruta_foto, "rb") as f:
+                        files = {
+                            "foto": (os.path.basename(ruta_foto), f, "image/jpeg")
+                        }
+                        data = {
+                            "nombre": nombre,
+                            "peso": str(peso),
+                            "altura": str(altura),
+                            "deporte": deporte,
+                            "plan_meses": str(plan_meses)
+                        }
+                        response = requests.post(url, data=data, files=files, timeout=15.0)
+                except Exception as io_ex:
+                    log_debug(f"[API] Falló lectura de archivo {ruta_foto}, fallback en memoria: {io_ex}")
+                    files = {
+                        "foto": (foto_name, foto_bytes, "image/jpeg")
+                    }
+                    data = {
+                        "nombre": nombre,
+                        "peso": str(peso),
+                        "altura": str(altura),
+                        "deporte": deporte,
+                        "plan_meses": str(plan_meses)
+                    }
+                    response = requests.post(url, data=data, files=files, timeout=15.0)
+                
                 if response.status_code == 201:
                     plan_data = response.json()
                     state["plan_data"] = plan_data
@@ -468,14 +516,14 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                 page.update()
                 return
                 
-            foto_bytes = state.get("foto_bytes")
-            foto_name = state.get("foto_name")
+            foto_bytes = state.get("foto_bytes") or (page.data.get("foto_bytes") if page.data else None)
+            foto_name = state.get("foto_name") or (page.data.get("foto_name") if page.data else None)
             log_debug(f"[Registrar] Datos iniciales de foto: bytes_len={len(foto_bytes) if foto_bytes else 'None'}, name={foto_name}")
             print(f"[Registrar DEBUG] Validando foto: name={foto_name}, bytes_len={len(foto_bytes) if foto_bytes else 'None'}")
             
             if not foto_bytes or not foto_name:
                 # Fallback de último recurso: intentar leer la ruta guardada si existe
-                foto_path = state.get("foto_url")
+                foto_path = state.get("foto_url") or (page.data.get("foto_url") if page.data else None)
                 log_debug(f"[Registrar] Intento de fallback con foto_path={foto_path}")
                 if foto_path and os.path.exists(foto_path) and os.path.isfile(foto_path):
                     try:
@@ -488,8 +536,8 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                         log_debug(f"[Registrar] Fallback fallo de lectura: {ex_read}")
                 
                 # Volver a verificar
-                foto_bytes = state.get("foto_bytes")
-                foto_name = state.get("foto_name")
+                foto_bytes = state.get("foto_bytes") or (page.data.get("foto_bytes") if page.data else None)
+                foto_name = state.get("foto_name") or (page.data.get("foto_name") if page.data else None)
                 if not foto_bytes or not foto_name:
                     log_debug("[Registrar] Activando SIMULACIÓN DE RESPALDO (MOCK) por falta de hardware/bytes reales.")
                     foto_bytes = b"bytes_de_imagen_de_prueba_roky"
@@ -497,12 +545,24 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     state["foto_bytes"] = foto_bytes
                     state["foto_name"] = foto_name
 
-            # Guardar datos en el estado
+            # Guardar datos en el estado y page.data
             state["nombre"] = txt_nombre.value
             state["peso"] = peso
             state["altura"] = altura
             state["deporte"] = dd_deporte.value
             state["avatar_seed"] = txt_nombre.value.replace(" ", "") or "roky"
+            
+            if page.data is None:
+                page.data = {}
+            page.data["nombre"] = txt_nombre.value
+            page.data["peso"] = peso
+            page.data["altura"] = altura
+            page.data["deporte"] = dd_deporte.value
+            page.data["avatar_seed"] = state["avatar_seed"]
+            page.data["foto_bytes"] = foto_bytes
+            page.data["foto_name"] = foto_name
+            page.data["foto_url"] = state.get("foto_url") or "foto_usuario.jpg"
+            page.data["foto_base64"] = state.get("foto_base64")
             
             # Enviar los datos en segundo plano al backend (puerto 8000)
             enviar_datos_al_backend(
@@ -583,8 +643,26 @@ def vista_plan(page: ft.Page, state: dict, navegar_a):
     # Una vez cargado, mostramos el avatar y las tarjetas de plan
     avatar_url = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={avatar_seed}&mood[]=happy"
     
+    # Recuperamos la foto del estado global para persistencia
+    foto_base64 = None
+    if page.data and isinstance(page.data, dict) and page.data.get("foto_base64"):
+        foto_base64 = page.data["foto_base64"]
+    elif state.get("foto_base64"):
+        foto_base64 = state.get("foto_base64")
+        
+    if foto_base64:
+        avatar_img_src = f"data:image/jpeg;base64,{foto_base64}"
+    else:
+        avatar_img_src = avatar_url
+        
     avatar_display = ft.Container(
-        content=ft.Image(src=avatar_url, width=110, height=110, fit="contain"),
+        content=ft.Image(
+            src=avatar_img_src, 
+            width=110, 
+            height=110, 
+            fit="cover" if foto_base64 else "contain",
+            border_radius=55 if foto_base64 else 0
+        ),
         width=120,
         height=120,
         border_radius=60,
@@ -1241,6 +1319,7 @@ def main(page: ft.Page):
     page.theme = ft.Theme(font_family="Outfit")
 
     # Estado de la sesión del usuario
+    page.data = {}
     state = {
         "current_view": "registro",
         "nombre": "",
