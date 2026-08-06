@@ -336,6 +336,28 @@ async def registrar_usuario(
         
     logger.info(f"Registro recibido: {nombre}, peso: {peso}kg, altura: {altura}cm, deporte: {deporte}, foto: {foto.filename}")
     
+    # 1. PROCESAMIENTO DE IMAGEN (IA BASE) Y FALLBACK EN EL BACKEND
+    foto_perfil_url = None
+    try:
+        foto_bytes = await foto.read()
+        import cv2
+        import numpy as np
+        import base64
+        nparr = np.frombuffer(foto_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img is not None and img.size > 0:
+            # Codificar imagen procesada válida a Base64 para retornar al frontend
+            encoded_string = base64.b64encode(foto_bytes).decode('utf-8')
+            foto_perfil_url = f"data:image/jpeg;base64,{encoded_string}"
+            logger.info("[Backend Image Processor] Foto recibida procesada correctamente en RAM.")
+        else:
+            # Fallback si falla la decodificación
+            foto_perfil_url = "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=500&auto=format&fit=crop"
+            logger.warning("[Backend Image Processor] Falló decodificación de imagen. Usando fallback 3D de Roky.")
+    except Exception as img_err:
+        logger.error(f"[Backend Image Processor] Excepción al procesar imagen: {img_err}")
+        foto_perfil_url = "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=500&auto=format&fit=crop"
+
     # Inicializar estado en la base de datos simulada con PROCESANDO
     avatar_db[nombre] = {
         "ready": False,
@@ -352,6 +374,7 @@ async def registrar_usuario(
         "plan_elegido_meses": plan_meses,
         "avatar_ready": False,
         "avatar_comic_url": "PROCESANDO",
+        "foto_perfil": foto_perfil_url,
         "fecha_registro": datetime.utcnow().isoformat()
     }
     try:
@@ -363,13 +386,16 @@ async def registrar_usuario(
     # Delegar el procesamiento pesado de la foto a la tarea en segundo plano
     background_tasks.add_task(procesar_foto_pipeline, nombre)
     
-    # Intentar generar plan con la IA de Gemini (nuevo ia_service)
+    # Intentar generar plan con la IA de Gemini (ia_service real conectado a la API de Vertex AI/Google AI Studio)
     plan = await generar_plan_entrenamiento_ia(
         nombre=nombre,
         peso=peso,
         deporte=deporte,
         plan_meses=plan_meses
     )
+    
+    # Agregar la foto de perfil en el JSON final de respuesta para que el frontend la reciba
+    plan["foto_perfil"] = foto_perfil_url
         
     # Guardar plan en Firestore con la nueva estructura
     try:
@@ -380,7 +406,8 @@ async def registrar_usuario(
             "nombre_usuario": nombre,
             "duracion_total_meses": plan_meses,
             "proyeccion_fisica": plan.get("proyeccion_fisica", []),
-            "bloques_entrenamiento": plan.get("bloques_entrenamiento", [])
+            "bloques_entrenamiento": plan.get("bloques_entrenamiento", []),
+            "foto_perfil": foto_perfil_url
         }
         db.collection("planes_entrenamiento").document(id_plan).set(plan_data)
         logger.info(f"Plan de entrenamiento guardado en Firestore para {nombre} con ID {id_plan}")
