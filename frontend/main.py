@@ -168,20 +168,19 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                         with open(file_info.path, "rb") as f:
                             foto_bytes = f.read()
                             
-                if foto_bytes:
-                    # 1. BUG DE CAPTURA/SUBIR: Escribir físicamente a 'foto_usuario.jpg' para homologar con el canal de la cámara
-                    with open('foto_usuario.jpg', 'wb') as f:
-                        f.write(foto_bytes)
-                    log_debug("[FilePicker] Copia guardada físicamente en foto_usuario.jpg")
+                if foto_bytes or (file_info.path and os.path.exists(file_info.path)):
+                    if not foto_bytes and file_info.path:
+                        with open(file_info.path, "rb") as image_file:
+                            foto_bytes = image_file.read()
+                            
+                    base64_data = base64.b64encode(foto_bytes).decode('utf-8')
+                    base64_uri = f"data:image/jpeg;base64,{base64_data}"
                     
                     state["foto_capturada"] = True
                     state["foto_name"] = "foto_usuario.jpg"
                     state["foto_bytes"] = foto_bytes
                     state["foto_url"] = "foto_usuario.jpg"
-                    
-                    # Convertir a Base64 y guardar en el estado global
-                    base64_uri = imagen_a_base64(file_info.path)
-                    state["foto_base64"] = base64_uri.replace("data:image/jpeg;base64,", "").replace("data:image/png;base64,", "")
+                    state["foto_base64"] = base64_data
                     
                     # Persistencia en el estado global
                     if page.data is None:
@@ -189,10 +188,10 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     page.data["foto_bytes"] = foto_bytes
                     page.data["foto_name"] = "foto_usuario.jpg"
                     page.data["foto_url"] = "foto_usuario.jpg"
-                    page.data["foto_base64"] = state["foto_base64"]
+                    page.data["foto_base64"] = base64_data
                     page.data["foto_perfil"] = base64_uri
                     
-                    # Actualizar componente visual de inmediato
+                    # Actualizar componente visual de inmediato sin archivos físicos
                     img_preview.src = page.data["foto_perfil"]
                     
                     img_preview.visible = True
@@ -265,27 +264,26 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
             if frame is None:
                 frame = state.get("last_frame_numpy")
             
-            # 4. Obtener y guardar el último frame físicamente
-            if frame is not None:
-                cv2.imwrite("foto_usuario.jpg", frame)
-                log_debug("[Camera] Último frame guardado físicamente en foto_usuario.jpg")
-            else:
-                # Fallback: si no hay cámara real o no se pudo leer, generamos un mock cyberpunk de Roky
+            # 4. Codificar frame directamente en memoria RAM sin escribir en disco
+            if frame is None:
+                # Fallback: si no hay cámara real o no se pudo leer, generamos un mock cyberpunk de Roky en RAM
                 import numpy as np
                 frame = np.zeros((480, 640, 3), dtype=np.uint8)
                 cv2.putText(frame, "Mock Avatar Roky", (100, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                cv2.imwrite("foto_usuario.jpg", frame)
-                log_debug("[Camera] Generado frame mock y guardado en foto_usuario.jpg")
+                log_debug("[Camera] Generado frame mock en RAM.")
 
             try:
-                # 5. Convertir a Base64 y fijar la propiedad de forma definitiva en 'src'
-                base64_data = imagen_a_base64("foto_usuario.jpg")
+                # 5. Convertir a Base64 y fijar la propiedad de forma definitiva en 'src' en memoria RAM
+                _, buffer = cv2.imencode('.jpg', frame)
+                foto_bytes = buffer.tobytes()
+                base64_data = base64.b64encode(foto_bytes).decode('utf-8')
+                base64_uri = f"data:image/jpeg;base64,{base64_data}"
+                
                 state["foto_capturada"] = True
                 state["foto_name"] = "foto_usuario.jpg"
-                with open("foto_usuario.jpg", "rb") as f:
-                    state["foto_bytes"] = f.read()
+                state["foto_bytes"] = foto_bytes
                 state["foto_url"] = "foto_usuario.jpg"
-                state["foto_base64"] = base64_data.replace("data:image/jpeg;base64,", "").replace("data:image/png;base64,", "")
+                state["foto_base64"] = base64_data
                 
                 # Persistencia en el estado global
                 if page.data is None:
@@ -294,7 +292,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                 page.data["foto_name"] = "foto_usuario.jpg"
                 page.data["foto_url"] = "foto_usuario.jpg"
                 page.data["foto_base64"] = state["foto_base64"]
-                page.data["foto_perfil"] = base64_data
+                page.data["foto_perfil"] = base64_uri
                 
                 # Actualizar componente visual de inmediato
                 img_preview.src = page.data["foto_perfil"]
@@ -306,7 +304,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                 btn_photo.icon = ft.Icons.CHECK_CIRCLE
                 btn_photo.icon_color = "#00FF66"
             except Exception as err:
-                log_debug(f"[Camera] Error al procesar base64: {err}")
+                log_debug(f"[Camera] Error al procesar codificación de frame en RAM: {err}")
             
             # 6. Forzar redibujado de la interfaz
             page.update()
@@ -636,28 +634,24 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
             page.data["foto_url"] = state.get("foto_url") or "foto_usuario.jpg"
             page.data["foto_base64"] = state.get("foto_base64")
             
-            # Asegurar que el archivo físico 'foto_usuario.jpg' exista en el disco
-            foto_usuario_path = "foto_usuario.jpg"
-            if not os.path.exists(foto_usuario_path):
-                with open(foto_usuario_path, "wb") as f:
-                    f.write(foto_bytes if foto_bytes else b"dummy_bytes")
-
-            # INYECTAR LA PETICIÓN HTTP REAL POR DETRÁS
+            # INYECTAR LA PETICIÓN HTTP REAL POR DETRÁS (Enviando bytes de la RAM directamente sin escribir en disco)
             try:
-                with open("foto_usuario.jpg", "rb") as f:
-                    files = {"foto": ("foto_usuario.jpg", f, "image/jpeg")}
-                    payload = {
-                        "nombre": txt_nombre.value,
-                        "peso": txt_peso.value,
-                        "altura": txt_altura.value,
-                        "deporte": dd_deporte.value,
-                        "plan_meses": str(state.get("plan_meses", 3)),
-                        "duracion": "3"
-                    }
-                    print("--- [INGENIERÍA ROXY] ENVIANDO DATOS A CLOUD RUN... ---")
-                    
-                    # Realizar la petición HTTP a la URL oficial del backend
-                    response = requests.post("https://run.app/registro", data=payload, files=files, timeout=15)
+                files = {"foto": ("foto_usuario.jpg", foto_bytes if foto_bytes else b"dummy_bytes", "image/jpeg")}
+                payload = {
+                    "nombre": txt_nombre.value,
+                    "peso": txt_peso.value,
+                    "altura": txt_altura.value,
+                    "deporte": dd_deporte.value,
+                    "plan_meses": str(state.get("plan_meses", 3)),
+                    "duracion": "3"
+                }
+                print("--- [INGENIERÍA ROXY] ENVIANDO DATOS A CLOUD RUN... ---")
+                
+                # Realizar la petición HTTP a la URL oficial del backend
+                response = requests.post("https://run.app/registro", data=payload, files=files, timeout=15)
+                
+                # Guardamos la respuesta en el estado global para que la simulación lo lea
+                if response.status_code in [200, 201]:
                     page.data = response.json()
                     print("--- [CONSOLA DE INGENIERÍA ROXY] JSON RECIBIDO: ---", page.data)
                     
@@ -683,6 +677,8 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                                         "anim": map_exercise_to_anim(ej["nombre"])
                                     } for ej in dia1.get("ejercicios", [])
                                 ]
+                else:
+                     print(f"--- [ERROR DE RED INGENIERÍA]: Status Code {response.status_code} - {response.text} ---")
             except Exception as e:
                 print(f"--- [ERROR DE RED INGENIERÍA]: {str(e)} ---")
                 
