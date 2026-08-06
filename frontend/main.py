@@ -526,25 +526,24 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     state["loading_plan"] = False
                     print("[API] Rutina de la IA recibida exitosamente del backend.")
                     
-                    # Cargar ejercicios de la IA en el estado para el entrenamiento activo si están disponibles
-                    if plan_data and "bloques_entrenamiento" in plan_data and len(plan_data["bloques_entrenamiento"]) > 0:
-                        bloque1 = plan_data["bloques_entrenamiento"][0]
-                        # Buscamos las semanas y los días de forma dinámica sin harcodear "Lunes"
-                        if "semanas" in bloque1 and len(bloque1["semanas"]) > 0:
-                            semana1 = bloque1["semanas"][0]
-                            if "dias" in semana1 and len(semana1["dias"]) > 0:
-                                dia1 = semana1["dias"][0]
-                                # Cargamos los ejercicios reales en el estado
-                                ej_raw = dia1.get("ejercicios", [])
-                                state["ejercicios"] = [
-                                    {
-                                        "nombre": ej["nombre"],
-                                        "series": ej["series"],
-                                        "repeticiones": ej.get("repeticiones", 12),
-                                        "anim": map_exercise_to_anim(ej["nombre"])
-                                    } for ej in ej_raw
-                                ]
-                                print(f"[INGENIERÍA API] Ejercicios de la IA cargados con éxito: {state['ejercicios']}")
+                    if plan_data and "bloques_mensuales" in plan_data and len(plan_data["bloques_mensuales"]) > 0:
+                        # Extraemos el bloque del Mes 1 (índice 0) para mostrarlo al cargar la pantalla
+                        bloque_actual = plan_data["bloques_mensuales"][0]
+                        # Extraemos la rutina del primer día disponible de esa semana de forma dinámica
+                        if "rutina_semanal" in bloque_actual and len(bloque_actual["rutina_semanal"]) > 0:
+                            primer_dia = bloque_actual["rutina_semanal"][0]
+                            # Inyectamos el enfoque físico real y los ejercicios reales de la IA en la interfaz
+                            state["enfoque_actual"] = bloque_actual.get("enfoque_fisico", "Entrenamiento de Hoy")
+                            ej_raw = primer_dia.get("ejercicios", [])
+                            state["ejercicios"] = [
+                                {
+                                    "nombre": ej["nombre"],
+                                    "series": ej["series"],
+                                    "repeticiones": ej.get("repeticiones", ej.get("repeticiones_max", 12)),
+                                    "anim": map_exercise_to_anim(ej["nombre"])
+                                } for ej in ej_raw
+                            ]
+                            print(f"[INGENIERÍA API FINAL] ¡ÉXITO! Ejercicios reales de la IA inyectados: {state['ejercicios']}")
                     else:
                         print("[ERROR LLAVES API] El JSON llegó con estas llaves:", plan_data.keys() if plan_data else "None")
                 else:
@@ -653,24 +652,24 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     
                     # Cargar ejercicios de la IA en el estado para el entrenamiento activo si están disponibles
                     plan_data = page.data
-                    if plan_data and "bloques_entrenamiento" in plan_data and len(plan_data["bloques_entrenamiento"]) > 0:
-                        bloque1 = plan_data["bloques_entrenamiento"][0]
-                        # Buscamos las semanas y los días de forma dinámica sin harcodear "Lunes"
-                        if "semanas" in bloque1 and len(bloque1["semanas"]) > 0:
-                            semana1 = bloque1["semanas"][0]
-                            if "dias" in semana1 and len(semana1["dias"]) > 0:
-                                dia1 = semana1["dias"][0]
-                                # Cargamos los ejercicios reales en el estado
-                                ej_raw = dia1.get("ejercicios", [])
-                                state["ejercicios"] = [
-                                    {
-                                        "nombre": ej["nombre"],
-                                        "series": ej["series"],
-                                        "repeticiones": ej.get("repeticiones", 12),
-                                        "anim": map_exercise_to_anim(ej["nombre"])
-                                    } for ej in ej_raw
-                                ]
-                                print(f"[INGENIERÍA] Ejercicios de la IA cargados con éxito: {state['ejercicios']}")
+                    if plan_data and "bloques_mensuales" in plan_data and len(plan_data["bloques_mensuales"]) > 0:
+                        # Extraemos el bloque del Mes 1 (índice 0) para mostrarlo al cargar la pantalla
+                        bloque_actual = plan_data["bloques_mensuales"][0]
+                        # Extraemos la rutina del primer día disponible de esa semana de forma dinámica
+                        if "rutina_semanal" in bloque_actual and len(bloque_actual["rutina_semanal"]) > 0:
+                            primer_dia = bloque_actual["rutina_semanal"][0]
+                            # Inyectamos el enfoque físico real y los ejercicios reales de la IA en la interfaz
+                            state["enfoque_actual"] = bloque_actual.get("enfoque_fisico", "Entrenamiento de Hoy")
+                            ej_raw = primer_dia.get("ejercicios", [])
+                            state["ejercicios"] = [
+                                {
+                                    "nombre": ej["nombre"],
+                                    "series": ej["series"],
+                                    "repeticiones": ej.get("repeticiones", ej.get("repeticiones_max", 12)),
+                                    "anim": map_exercise_to_anim(ej["nombre"])
+                                } for ej in ej_raw
+                            ]
+                            print(f"[INGENIERÍA FINAL] ¡ÉXITO! Ejercicios reales de la IA inyectados: {state['ejercicios']}")
                     else:
                         print("[ERROR LLAVES] El JSON llegó con estas llaves:", plan_data.keys() if plan_data else "None")
                 else:
@@ -983,21 +982,32 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
 
         img_avatar.src = foto_src
 
-        # 1. ACTUALIZACIÓN DINÁMICA DE TEXTOS DE IA Y SIMULACIÓN VISUAL (Escala y bordes)
+        # 1. ACTUALIZACIÓN DINÁMICA DE TEXTOS DE IA Y SIMULACIÓN VISUAL (Escala, bordes y peso predictivo de Gemini)
+        plan_data = state.get("plan_data") or (page.data if page.data and isinstance(page.data, dict) and "bloques_mensuales" in page.data else None)
+        peso_estimado = None
+        if plan_data and "bloques_mensuales" in plan_data:
+            for b in plan_data["bloques_mensuales"]:
+                if b.get("mes") == mes:
+                    peso_estimado = b.get("prediccion_peso_estimado")
+                    break
+        
         if mes == 0:
-            peso_estimado = 69.0
+            if peso_estimado is None:
+                peso_estimado = float(state.get("peso") or (page.data.get("peso") if page.data else 69.0))
             musculo_ganado = 0.0
             grasa_estimada = 22.0
             img_avatar.scale = 1.0
             avatar_card.border = ft.Border.all(2, "#00FF66")
         elif mes <= 3:
-            peso_estimado = 65.5
+            if peso_estimado is None:
+                peso_estimado = 65.5
             musculo_ganado = 1.2
             grasa_estimada = 18.0
             img_avatar.scale = 0.9  # Reducir 10% tamaño visual
             avatar_card.border = ft.Border.all(4, "#00FF66")  # Borde verde brillante grueso
         else:
-            peso_estimado = 63.0
+            if peso_estimado is None:
+                peso_estimado = 63.0
             musculo_ganado = 2.8
             grasa_estimada = 14.0
             img_avatar.scale = 0.8  # Reducir 20% tamaño visual
