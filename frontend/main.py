@@ -544,6 +544,11 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                                 } for ej in ej_raw
                             ]
                             print(f"[INGENIERÍA API FINAL] ¡ÉXITO! Ejercicios reales de la IA inyectados: {state['ejercicios']}")
+                            try:
+                                actualizar_simulacion(0)
+                                page.update()
+                            except Exception:
+                                pass
                     else:
                         print("[ERROR LLAVES API] El JSON llegó con estas llaves:", plan_data.keys() if plan_data else "None")
                 else:
@@ -670,6 +675,11 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                                 } for ej in ej_raw
                             ]
                             print(f"[INGENIERÍA FINAL] ¡ÉXITO! Ejercicios reales de la IA inyectados: {state['ejercicios']}")
+                            try:
+                                actualizar_simulacion(0)
+                                page.update()
+                            except Exception:
+                                pass
                     else:
                         print("[ERROR LLAVES] El JSON llegó con estas llaves:", plan_data.keys() if plan_data else "None")
                 else:
@@ -1021,24 +1031,51 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
         
         state["peso_estimado"] = peso_estimado
         
-        fase_title, ejercicios = get_rutina_mes(mes)
-            
+        # Obtener los ejercicios del mes actual desde plan_data (IA de Gemini) si están disponibles
+        ejercicios_ia = []
+        if plan_data and "bloques_mensuales" in plan_data:
+            for b in plan_data["bloques_mensuales"]:
+                if b.get("mes") == mes:
+                    if "rutina_semanal" in b and len(b["rutina_semanal"]) > 0:
+                        primer_dia = b["rutina_semanal"][0]
+                        ejercicios_ia = primer_dia.get("ejercicios", [])
+                    break
+        
         # Actualizar ejercicios del panel inferior en tiempo real
         exercises_container.controls.clear()
         exercises_container.controls.append(
             ft.Text("Entrenamiento de Hoy", size=12, color="#00FF66", weight=ft.FontWeight.BOLD)
         )
-        for ej in ejercicios:
-            exercises_container.controls.append(
-                ft.Row(
-                    controls=[
-                        ft.Icon(ft.Icons.PLAY_ARROW_ROUNDED, size=14, color="#00F0FF"),
-                        ft.Text(f"{ej['nombre']}", size=13, color="#FFFFFF", weight=ft.FontWeight.W_500),
-                        ft.Text(f"({ej['series']}x{ej['reps']})", size=11, color="#8B949E")
-                    ],
-                    spacing=5
+        
+        if ejercicios_ia:
+            for ej in ejercicios_ia:
+                nombre_ej = ej.get("nombre", "")
+                series_ej = ej.get("series", 4)
+                reps_ej = ej.get("repeticiones", ej.get("reps", 12))
+                exercises_container.controls.append(
+                    ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.PLAY_ARROW_ROUNDED, size=14, color="#00F0FF"),
+                            ft.Text(f"{nombre_ej}", size=13, color="#FFFFFF", weight=ft.FontWeight.W_500),
+                            ft.Text(f"({series_ej}x{reps_ej})", size=11, color="#8B949E")
+                        ],
+                        spacing=5
+                    )
                 )
-            )
+        else:
+            # Fallback estático
+            fase_title, ejercicios_static = get_rutina_mes(mes)
+            for ej in ejercicios_static:
+                exercises_container.controls.append(
+                    ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.PLAY_ARROW_ROUNDED, size=14, color="#00F0FF"),
+                            ft.Text(f"{ej['nombre']}", size=13, color="#FFFFFF", weight=ft.FontWeight.W_500),
+                            ft.Text(f"({ej['series']}x{ej['reps']})", size=11, color="#8B949E")
+                        ],
+                        spacing=5
+                    )
+                )
 
     # Función para crear contenedores flotantes de estadísticas
     def create_stat_box(title, control, icon, color):
