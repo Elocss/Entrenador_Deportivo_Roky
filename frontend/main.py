@@ -1,7 +1,12 @@
+import base64
 import flet as ft
 import time
 import sys
 import os
+
+def imagen_a_base64(ruta_archivo):
+    with open(ruta_archivo, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode('utf-8')
 
 # Configuración de rutas de importación para robustez local
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -141,11 +146,10 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     state["foto_bytes"] = foto_bytes
                     state["foto_url"] = "foto_usuario.jpg"
                     
-                    import base64
-                    encoded_string = base64.b64encode(foto_bytes).decode('utf-8')
+                    encoded_string = imagen_a_base64("foto_usuario.jpg")
                     state["foto_base64"] = encoded_string
-                    img_preview.src = file_info.path or file_info.name or "foto_usuario.jpg"
                     img_preview.src_base64 = encoded_string
+                    img_preview.src = None
                     
                     img_preview.visible = True
                     icon_preview.visible = False
@@ -304,11 +308,10 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     state["foto_bytes"] = foto_bytes
                     state["foto_url"] = "foto_usuario.jpg"
                     
-                    import base64
-                    encoded_string = base64.b64encode(foto_bytes).decode('utf-8')
+                    encoded_string = imagen_a_base64("foto_usuario.jpg")
                     state["foto_base64"] = encoded_string
-                    img_preview.src = "foto_usuario.jpg"
                     img_preview.src_base64 = encoded_string
+                    img_preview.src = None
                     
                     # Estilo de éxito definitivo
                     btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
