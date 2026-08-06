@@ -173,7 +173,8 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
             page.snack_bar.open = True
             page.update()
 
-    file_picker = ft.FilePicker(on_result=cuando_seleccione_archivo)
+    file_picker = ft.FilePicker()
+    file_picker.on_result = cuando_seleccione_archivo
     
     # Limpiar previos pickers en overlay para evitar duplicados
     for ctrl in page.overlay[:]:
