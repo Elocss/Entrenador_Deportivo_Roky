@@ -22,7 +22,16 @@ async def generar_plan_entrenamiento_ia(nombre: str, peso: float, deporte: str, 
     system_instruction = (
         "Actúas como Roky, un entrenador deportivo inteligente, motivador y en formato avatar 3D estilizado. "
         "Tu objetivo es estructurar un plan de entrenamiento lógico mes a mes y calcular una proyección matemática "
-        "realista de pérdida de peso y ganancia muscular basada en los datos del usuario."
+        "realista de pérdida de peso y ganancia muscular basada en los datos del usuario.\n\n"
+        "REGLAS DE ENTRENAMIENTO DE ÉLITE Y FISIOLOGÍA:\n"
+        "1. REGLA DE COHERENCIA MUSCULAR (ESTRICTA):\n"
+        "Debes agrupar los ejercicios del día utilizando sinergias musculares anatómicas reales y ordenadas. Queda estrictamente prohibido mezclar grupos musculares inconexos en la misma sesión diaria. Las opciones de división semanal permitidas según el deporte son:\n"
+        "- Opción A (División por empuje/tirón/pierna): Día 1: Pecho, Hombros y Tríceps (Tren superior de empuje). Día 2: Espalda y Bíceps (Tren superior de tirón). Día 3: Piernas completas, Pantorrillas y Abdomen (Tren inferior y core).\n"
+        "- Opción B (División localizada coherente): Si toca un día de piernas, todos los ejercicios de ese bloque diario deben ser de tren inferior (ej: Sentadillas, Zancadas, Extensiones, Pantorrilla). Nunca mezcles flexiones de pecho o remos de espalda en un día catalogado como 'Tren Inferior'.\n\n"
+        "2. PROGRESIÓN MENSUAL INTELIGENTE:\n"
+        "Los bloques de entrenamiento de los meses subsiguientes (Mes 2 y Mes 3) no pueden ser una copia exacta del Mes 1. Deben cambiar los ejercicios por variantes avanzadas o ajustar las series y repeticiones para simular una sobrecarga progresiva real.\n\n"
+        "3. PRESERVACIÓN DEL ESQUEMA JSON:\n"
+        "Debes estructurar el plan usando las llaves 'duracion_total_meses' y 'bloques_mensuales' exactamente."
     )
 
     prompt = (
@@ -32,13 +41,14 @@ async def generar_plan_entrenamiento_ia(nombre: str, peso: float, deporte: str, 
         f"- Deporte/Estilo de entrenamiento: {deporte}\n"
         f"- Duración del plan: {plan_meses} meses\n\n"
         f"Debes responder ÚNICAMENTE con un objeto JSON estructurado que siga exactamente el esquema especificado.\n"
-        f"El plan debe cubrir exactamente {plan_meses} meses, con un enfoque progresivo."
+        f"Aplica estrictamente las reglas de coherencia muscular y progresión inteligente en bloques_mensuales."
     )
 
     # Esquema JSON estricto
     schema = {
         "type": "OBJECT",
         "properties": {
+            "duracion_total_meses": {"type": "INTEGER"},
             "proyeccion_fisica": {
                 "type": "ARRAY",
                 "items": {
@@ -51,52 +61,44 @@ async def generar_plan_entrenamiento_ia(nombre: str, peso: float, deporte: str, 
                     "required": ["mes", "peso_estimado_kg", "cambio_visual_avatar"]
                 }
             },
-            "bloques_entrenamiento": {
+            "bloques_mensuales": {
                 "type": "ARRAY",
                 "items": {
                     "type": "OBJECT",
                     "properties": {
                         "mes": {"type": "INTEGER"},
-                        "enfoque_mensual": {"type": "STRING"},
-                        "semanas": {
+                        "enfoque_fisico": {"type": "STRING"},
+                        "prediccion_peso_estimado": {"type": "NUMBER"},
+                        "rutina_semanal": {
                             "type": "ARRAY",
                             "items": {
                                 "type": "OBJECT",
                                 "properties": {
-                                    "semana": {"type": "INTEGER"},
-                                    "dias": {
+                                    "dia": {"type": "STRING"},
+                                    "grupo_muscular": {"type": "STRING"},
+                                    "ejercicios": {
                                         "type": "ARRAY",
                                         "items": {
                                             "type": "OBJECT",
                                             "properties": {
-                                                "dia": {"type": "STRING"},
-                                                "ejercicios": {
-                                                    "type": "ARRAY",
-                                                    "items": {
-                                                        "type": "OBJECT",
-                                                        "properties": {
-                                                            "nombre": {"type": "STRING"},
-                                                            "series": {"type": "INTEGER"},
-                                                            "repeticiones": {"type": "INTEGER"},
-                                                            "descanso_segundos": {"type": "INTEGER"}
-                                                        },
-                                                        "required": ["nombre", "series", "repeticiones", "descanso_segundos"]
-                                                    }
-                                                }
+                                                "nombre": {"type": "STRING"},
+                                                "series": {"type": "INTEGER"},
+                                                "repeticiones": {"type": "INTEGER"},
+                                                "id_animacion_avatar": {"type": "STRING"}
                                             },
-                                            "required": ["dia", "ejercicios"]
+                                            "required": ["nombre", "series", "repeticiones", "id_animacion_avatar"]
                                         }
                                     }
                                 },
-                                "required": ["semana", "dias"]
+                                "required": ["dia", "grupo_muscular", "ejercicios"]
                             }
                         }
                     },
-                    "required": ["mes", "enfoque_mensual", "semanas"]
+                    "required": ["mes", "enfoque_fisico", "prediccion_peso_estimado", "rutina_semanal"]
                 }
             }
         },
-        "required": ["proyeccion_fisica", "bloques_entrenamiento"]
+        "required": ["duracion_total_meses", "proyeccion_fisica", "bloques_mensuales"]
     }
 
     payload = {

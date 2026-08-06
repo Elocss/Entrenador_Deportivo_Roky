@@ -408,7 +408,7 @@ async def registrar_usuario(
             "nombre_usuario": nombre,
             "duracion_total_meses": plan_meses,
             "proyeccion_fisica": plan.get("proyeccion_fisica", []),
-            "bloques_entrenamiento": plan.get("bloques_entrenamiento", []),
+            "bloques_mensuales": plan.get("bloques_mensuales", []),
             "foto_perfil": foto_perfil_url
         }
         db.collection("planes_entrenamiento").document(id_plan).set(plan_data)
