@@ -1182,6 +1182,7 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
         FILL = "fill"
     ft.ImageFit = ImageFitHelper
 
+    # Inicialización de ejercicios si están vacíos
     if "ejercicios" not in state or not state["ejercicios"]:
         state["ejercicios"] = [
             {"nombre": "Sentadillas Cyber", "series": 4, "repeticiones": 15, "anim": "squats"},
@@ -1191,18 +1192,52 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
         
     state["ejercicio_actual"] = state.get("ejercicio_actual", 0)
     state["serie_actual"] = state.get("serie_actual", 1)
-    
-    # 1. Declaración exacta requerida para la imagen del avatar de Roky
+    state["serie_en_curso"] = state.get("serie_en_curso", False)
+
+    # 1. MAPEO DE EJERCICIOS Y ANIMACIONES (GIFs deportivos)
+    MAPPING_ANIMACIONES = {
+        "Sentadillas libres": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3ZtYnhmMnptMmRxOXoyMWhzcHc5dncyMDRhZXdwMTJ4YnZubm9nayZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/WOBZ8tHAd946P6968F/giphy.gif",
+        "Sentadillas Cyber": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3ZtYnhmMnptMmRxOXoyMWhzcHc5dncyMDRhZXdwMTJ4YnZubm9nayZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/WOBZ8tHAd946P6968F/giphy.gif",
+        "Caminata Moderada": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMmZkYnVjOHoxMGQ0amE0NmV0dG00Z2x6cjQ2MXZ6aGFid282ZmlhZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/mKqDCEH55lIqH8jO7j/giphy.gif",
+        "Flexiones Neón": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNmwwYW83NGRwZjNpOHo1cmhxNHh0bmptYmNqOHoydzExbWltbjQ3biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/3orife8kC8P3jE2nS0/giphy.gif",
+        "Plancha Cuántica": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExN3RscHRpcTUzcXB6c2h5ZGF4ZjZndDN4cnlhOXg4MTM1M3QydWZvNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/3o7TKS396Af7zG7tTi/giphy.gif",
+        "Squats": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3ZtYnhmMnptMmRxOXoyMWhzcHc5dncyMDRhZXdwMTJ4YnZubm9nayZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/WOBZ8tHAd946P6968F/giphy.gif",
+        "Pushups": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNmwwYW83NGRwZjNpOHo1cmhxNHh0bmptYmNqOHoydzExbWltbjQ3biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/3orife8kC8P3jE2nS0/giphy.gif",
+        "Plank": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExN3RscHRpcTUzcXB6c2h5ZGF4ZjZndDN4cnlhOXg4MTM1M3QydWZvNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/3o7TKS396Af7zG7tTi/giphy.gif",
+        "Jumping Jacks": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMmZkYnVjOHoxMGQ0amE0NmV0dG00Z2x6cjQ2MXZ6aGFid282ZmlhZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/mKqDCEH55lIqH8jO7j/giphy.gif",
+        "Dumbbell Row": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNmwwYW83NGRwZjNpOHo1cmhxNHh0bmptYmNqOHoydzExbWltbjQ3biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/3orife8kC8P3jE2nS0/giphy.gif",
+        "Shoulder Press": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNmwwYW83NGRwZjNpOHo1cmhxNHh0bmptYmNqOHoydzExbWltbjQ3biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/3orife8kC8P3jE2nS0/giphy.gif"
+    }
+
+    def obtener_url_animacion(nombre_ejercicio):
+        nombre_lower = nombre_ejercicio.lower()
+        if "sentadilla" in nombre_lower or "squat" in nombre_lower:
+            return MAPPING_ANIMACIONES["Sentadillas Cyber"]
+        elif "caminata" in nombre_lower or "walk" in nombre_lower or "trote" in nombre_lower or "jog" in nombre_lower or "correr" in nombre_lower:
+            return MAPPING_ANIMACIONES["Caminata Moderada"]
+        elif "flexion" in nombre_lower or "push" in nombre_lower:
+            return MAPPING_ANIMACIONES["Flexiones Neón"]
+        elif "plancha" in nombre_lower or "plank" in nombre_lower:
+            return MAPPING_ANIMACIONES["Plancha Cuántica"]
+        
+        # Mapear buscando coincidencia parcial
+        for key, url in MAPPING_ANIMACIONES.items():
+            if key.lower() in nombre_lower:
+                return url
+        return None
+
+    # 2. Inicialización del componente de imagen
     avatar_roky = ft.Image(
-        src="avatar_roky.gif", 
-        width=350, 
-        height=180, 
+        src=f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy", 
+        width=130, 
+        height=130, 
         fit=ft.ImageFit.CONTAIN
     )
     
     lbl_ex_name = ft.Text("", size=22, weight=ft.FontWeight.BOLD, color="#FFFFFF")
     lbl_series_reps = ft.Text("", size=15, color="#00F0FF", weight=ft.FontWeight.W_500)
     lbl_timer = ft.Text("", size=24, weight=ft.FontWeight.BOLD, color="#00FF66", visible=False)
+    lbl_cronometro = ft.Text("00:00", size=13, color="#00F0FF", weight=ft.FontWeight.BOLD)
     
     avatar_box = ft.Container(
         content=avatar_roky,
@@ -1213,6 +1248,22 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
         border=ft.Border.all(1, "#1F2937")
     )
 
+    # Temporizador para active timer en la cabecera
+    async def ejecutar_cronometro():
+        import asyncio
+        state["tiempo_serie"] = 0
+        while state.get("serie_en_curso", False):
+            mins = state["tiempo_serie"] // 60
+            secs = state["tiempo_serie"] % 60
+            lbl_cronometro.value = f"{mins:02d}:{secs:02d}"
+            try:
+                page.update()
+            except Exception:
+                break
+            await asyncio.sleep(1)
+            state["tiempo_serie"] += 1
+
+    # Temporizador para descanso entre series
     async def ejecutar_timer_descanso(e=None):
         import asyncio
         state["rest_time"] = 30
@@ -1239,12 +1290,13 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
     def completar_entrenamiento():
         state["is_animating"] = False
         state["is_resting"] = False
+        state["serie_en_curso"] = False
         
         dialog = ft.AlertDialog(
             title=ft.Text("¡Entrenamiento Completado!", color="#00FF66", weight=ft.FontWeight.BOLD),
             content=ft.Text("Excelente trabajo hoy. ¡Tu avatar Roky está orgulloso de tu esfuerzo!", color="#FFFFFF"),
             actions=[
-                ft.TextButton("Volver al Inicio", on_click=lambda e: cerrar_dialogo_y_volver(dialog))
+                ft.TextButton("Volver al Progreso", on_click=lambda e: cerrar_dialogo_y_volver(dialog))
             ],
             bgcolor="#161B22"
         )
@@ -1256,9 +1308,9 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
         dialog.open = False
         state["ejercicio_actual"] = 0
         state["serie_actual"] = 1
-        state["avatar_generado"] = False
+        state["serie_en_curso"] = False
         page.update()
-        navegar_a("registro")
+        navegar_a("simulacion")
 
     def actualizar_pantalla():
         ex_idx = state["ejercicio_actual"]
@@ -1268,34 +1320,34 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
             
         ex = state["ejercicios"][ex_idx]
         lbl_ex_name.value = ex["nombre"]
-        lbl_series_reps.value = f"Serie {state['serie_actual']} de {ex['series']} | {ex['repeticiones']} Reps"
+        lbl_series_reps.value = f"Serie {state['serie_actual']} de {ex['series']} | {ex.get('repeticiones', 12)} Reps"
         
-        # 2. Mapeo dinámico eliminando barra inclinada inicial para leer dentro del sandbox
-        anim_id = ex.get("anim") or ex.get("id_animacion_avatar") or ""
-        local_path = f"assets/animations/{anim_id}.gif" if anim_id else ""
+        # Buscar animación dinámica en el diccionario o fallback a avatar estático
+        anim_url = obtener_url_animacion(ex["nombre"])
         
-        if anim_id and os.path.exists(local_path):
-            src_path = f"animations/{anim_id}.gif"  # Mapeo relativo sin barra inicial
-            w, h = 350, 180
+        if anim_url:
+            avatar_roky.src = anim_url
+            avatar_roky.width = 350
+            avatar_roky.height = 180
+            avatar_roky.fit = ft.ImageFit.CONTAIN
         else:
-            if os.path.exists("assets/animations/jogging.gif"):
-                src_path = "animations/jogging.gif"  # Mapeo relativo sin barra inicial
-                w, h = 350, 180
-            else:
-                src_path = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
-                w, h = 130, 130
+            # Avatar estático por defecto
+            avatar_roky.src = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
+            avatar_roky.width = 130
+            avatar_roky.height = 130
+            avatar_roky.fit = ft.ImageFit.CONTAIN
             
-        avatar_roky.src = src_path
-        avatar_roky.width = w
-        avatar_roky.height = h
-        print(f"[debug] actualizar_pantalla: src_path = {src_path}")
-        
+        # Actualización de Botones y Estados Visuales
         if state.get("is_resting", False):
-            btn_accion.content = ft.Text("Omitir Descanso", color="#000000", weight=ft.FontWeight.BOLD)
+            btn_accion_text.value = "Omitir Descanso"
             btn_accion.bgcolor = "#00F0FF"
             btn_accion.shadow = ft.BoxShadow(spread_radius=1, blur_radius=10, color="#00F0FF", offset=ft.Offset(0, 2))
+        elif state.get("serie_en_curso", False):
+            btn_accion_text.value = "Terminar Serie"
+            btn_accion.bgcolor = "#FF3333"
+            btn_accion.shadow = ft.BoxShadow(spread_radius=1, blur_radius=10, color="#FF3333", offset=ft.Offset(0, 2))
         else:
-            btn_accion.content = ft.Text("Iniciar Serie", color="#000000", weight=ft.FontWeight.BOLD)
+            btn_accion_text.value = "Iniciar Serie"
             btn_accion.bgcolor = "#00FF66"
             btn_accion.shadow = ft.BoxShadow(spread_radius=1, blur_radius=10, color="#00FF66", offset=ft.Offset(0, 2))
             
@@ -1312,16 +1364,34 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
         ex_idx = state["ejercicio_actual"]
         ex = state["ejercicios"][ex_idx]
         
-        if state["serie_actual"] < ex["series"]:
-            state["serie_actual"] += 1
-            page.run_task(ejecutar_timer_descanso)
+        if not state.get("serie_en_curso", False):
+            # Iniciar la Serie activa
+            state["serie_en_curso"] = True
+            btn_accion_text.value = "Terminar Serie"
+            btn_accion.bgcolor = "#FF3333"
+            btn_accion.shadow = ft.BoxShadow(spread_radius=1, blur_radius=10, color="#FF3333", offset=ft.Offset(0, 2))
+            try:
+                page.update()
+            except Exception:
+                pass
+            # Iniciar temporizador asíncrono
+            page.run_task(ejecutar_cronometro)
         else:
-            state["ejercicio_actual"] += 1
-            state["serie_actual"] = 1
-            actualizar_pantalla()
+            # Terminar la Serie activa
+            state["serie_en_curso"] = False
+            lbl_cronometro.value = "00:00"
+            
+            if state["serie_actual"] < ex["series"]:
+                state["serie_actual"] += 1
+                page.run_task(ejecutar_timer_descanso)
+            else:
+                state["ejercicio_actual"] += 1
+                state["serie_actual"] = 1
+                actualizar_pantalla()
 
+    btn_accion_text = ft.Text("Iniciar Serie", color="#000000", weight=ft.FontWeight.BOLD, size=16)
     btn_accion = ft.Container(
-        content=ft.Text("Iniciar Serie", color="#000000", weight=ft.FontWeight.BOLD, size=16),
+        content=btn_accion_text,
         alignment=ft.alignment.Alignment.CENTER,
         bgcolor="#00FF66",
         height=52,
@@ -1340,11 +1410,13 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
     
     def skip_exercise():
         state["is_resting"] = False
+        state["serie_en_curso"] = False
+        lbl_cronometro.value = "00:00"
         state["ejercicio_actual"] += 1
         state["serie_actual"] = 1
         actualizar_pantalla()
 
-    # 3. Refresco diferido para limpiar caché inmediatamente después de montar el componente
+    # Refresco diferido para limpiar caché inmediatamente después de montar el componente
     async def refrescar_tras_montar(e=None):
         import asyncio
         await asyncio.sleep(0.08)
@@ -1367,7 +1439,10 @@ def vista_entrenamiento(page: ft.Page, state: dict, navegar_a):
                             on_click=lambda _: navegar_a("simulacion")
                         ),
                         ft.Text("Entrenamiento Activo", size=18, weight=ft.FontWeight.BOLD, color="#FFFFFF"),
-                        ft.Icon(ft.Icons.TIMER_OUTLINED, color="#00F0FF", size=20)
+                        ft.Row([
+                            ft.Icon(ft.Icons.TIMER_OUTLINED, color="#00F0FF", size=20),
+                            lbl_cronometro
+                        ], spacing=3)
                     ],
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN
                 ),
