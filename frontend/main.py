@@ -77,19 +77,6 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
         height=50,
     )
     
-    txt_correo = ft.TextField(
-        label="Correo Electrónico",
-        value=state.get("correo", ""),
-        border_color="#1F2937",
-        focused_border_color="#00FF66",
-        label_style=ft.TextStyle(color="#8B949E"),
-        text_style=ft.TextStyle(color="#FFFFFF", weight=ft.FontWeight.W_500),
-        cursor_color="#00FF66",
-        bgcolor="#161B22",
-        border_radius=10,
-        height=50,
-    )
-    
     txt_peso = ft.TextField(
         label="Peso (kg)",
         value=str(state["peso"]) if state["peso"] > 0 else "",
@@ -567,10 +554,6 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                 lbl_error.value = "Por favor ingresa tu nombre."
                 page.update()
                 return
-            if not txt_correo.value:
-                lbl_error.value = "Por favor ingresa tu correo electrónico."
-                page.update()
-                return
             
             try:
                 peso = float(txt_peso.value)
@@ -615,7 +598,6 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
 
             # Guardar datos en el estado y page.data
             state["nombre"] = txt_nombre.value
-            state["correo"] = txt_correo.value
             state["peso"] = peso
             state["altura"] = altura
             state["deporte"] = dd_deporte.value
@@ -624,7 +606,6 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
             if page.data is None:
                 page.data = {}
             page.data["nombre"] = txt_nombre.value
-            page.data["correo"] = txt_correo.value
             page.data["peso"] = peso
             page.data["altura"] = altura
             page.data["deporte"] = dd_deporte.value
@@ -640,7 +621,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                 with open(foto_usuario_path, "wb") as f:
                     f.write(foto_bytes if foto_bytes else b"dummy_bytes")
 
-            # INYECTAR LA PETICIÓN HTTP REAL
+            # INYECTAR LA PETICIÓN HTTP REAL POR DETRÁS
             try:
                 with open("foto_usuario.jpg", "rb") as f:
                     files = {"foto": ("foto_usuario.jpg", f, "image/jpeg")}
@@ -648,61 +629,44 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                         "nombre": txt_nombre.value,
                         "peso": txt_peso.value,
                         "altura": txt_altura.value,
-                        "correo": txt_correo.value,
                         "deporte": dd_deporte.value,
                         "plan_meses": str(state.get("plan_meses", 3)),
-                        "duracion": str(state.get("plan_meses", 3))
+                        "duracion": "3"
                     }
                     print("--- [INGENIERÍA ROXY] ENVIANDO DATOS A CLOUD RUN... ---")
                     
                     # Realizar la petición HTTP a la URL oficial del backend
                     response = requests.post("https://run.app/registro", data=payload, files=files, timeout=15)
+                    page.data = response.json()
+                    print("--- [CONSOLA DE INGENIERÍA ROXY] JSON RECIBIDO: ---", page.data)
                     
-                    if response.status_code in [200, 201]:
-                        # Guardamos la respuesta en el estado global para que la Capa 3 lo lea
-                        page.data = response.json()
-                        state["plan_data"] = page.data
-                        state["loading_plan"] = False
-                        print("--- [CONSOLA DE INGENIERÍA ROXY] JSON RECIBIDO: ---", page.data)
-                        
-                        # Cargar ejercicios de la IA en el estado para el entrenamiento activo si están disponibles
-                        plan_data = page.data
-                        if "bloques_entrenamiento" in plan_data and len(plan_data["bloques_entrenamiento"]) > 0:
-                            bloque1 = plan_data["bloques_entrenamiento"][0]
-                            semanas = bloque1.get("semanas", [])
-                            if semanas:
-                                semana1 = semanas[0]
-                                dias = semana1.get("dias", [])
-                                if dias:
-                                    dia1 = dias[0]
-                                    state["ejercicios"] = [
-                                        {
-                                            "nombre": ej["nombre"],
-                                            "series": ej["series"],
-                                            "repeticiones": ej.get("repeticiones", 12),
-                                            "anim": map_exercise_to_anim(ej["nombre"])
-                                        } for ej in dia1.get("ejercicios", [])
-                                    ]
-                        
-                        # ENLAZA EL FLUJO VISUAL:
-                        # Solo cuando response es exitoso, permite cambiar de pantalla hacia Capa 3 ("simulacion")
-                        navegar_a("simulacion")
-                    else:
-                        print(f"--- [ERROR DE RED INGENIERÍA]: Status Code {response.status_code} - {response.text} ---")
-                        page.snack_bar = ft.SnackBar(
-                            content=ft.Text(f"Error de registro (Status {response.status_code}): {response.text}", color="#FFFFFF"),
-                            bgcolor="#FF3333"
-                        )
-                        page.snack_bar.open = True
-                        page.update()
+                    # Guardamos el plan en el estado
+                    state["plan_data"] = page.data
+                    state["loading_plan"] = False
+                    
+                    # Cargar ejercicios de la IA en el estado para el entrenamiento activo si están disponibles
+                    plan_data = page.data
+                    if "bloques_entrenamiento" in plan_data and len(plan_data["bloques_entrenamiento"]) > 0:
+                        bloque1 = plan_data["bloques_entrenamiento"][0]
+                        semanas = bloque1.get("semanas", [])
+                        if semanas:
+                            semana1 = semanas[0]
+                            dias = semana1.get("dias", [])
+                            if dias:
+                                dia1 = dias[0]
+                                state["ejercicios"] = [
+                                    {
+                                        "nombre": ej["nombre"],
+                                        "series": ej["series"],
+                                        "repeticiones": ej.get("repeticiones", 12),
+                                        "anim": map_exercise_to_anim(ej["nombre"])
+                                    } for ej in dia1.get("ejercicios", [])
+                                ]
             except Exception as e:
                 print(f"--- [ERROR DE RED INGENIERÍA]: {str(e)} ---")
-                page.snack_bar = ft.SnackBar(
-                    content=ft.Text(f"Error de red: {e}", color="#FFFFFF"),
-                    bgcolor="#FF3333"
-                )
-                page.snack_bar.open = True
-                page.update()
+                
+            # Avanzar a la Capa 3 de 'Mi Progreso' como se hacía antes
+            navegar_a("simulacion")
         except Exception as err:
             print(f"[Registrar DEBUG] Error en on_registrar: {err}")
             lbl_error.value = f"Error al registrar: {err}"
@@ -747,7 +711,6 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
 
                 
                 txt_nombre,
-                txt_correo,
                 ft.Row(controls=[txt_peso, txt_altura], spacing=10),
                 dd_deporte,
                 lbl_error,
@@ -1605,7 +1568,6 @@ def main(page: ft.Page):
     state = {
         "current_view": "registro",
         "nombre": "",
-        "correo": "",
         "peso": 0.0,
         "altura": 0.0,
         "deporte": "Fitness / Gimnasio",
