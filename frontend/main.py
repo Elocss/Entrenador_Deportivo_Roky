@@ -100,9 +100,11 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
 
 
 
+    PIXEL_TRANSPARENTE = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+
     # Preview y captura de foto
     img_preview = ft.Image(
-        src=state.get("foto_url", "https://api.dicebear.com/7.x/pixel-art/svg?seed=roky&mood[]=happy"),
+        src_base64=PIXEL_TRANSPARENTE,
         width=100,
         height=100,
         fit="cover",
@@ -149,7 +151,6 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     encoded_string = imagen_a_base64("foto_usuario.jpg")
                     state["foto_base64"] = encoded_string
                     img_preview.src_base64 = encoded_string
-                    img_preview.src = None
                     
                     img_preview.visible = True
                     icon_preview.visible = False
@@ -311,7 +312,6 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     encoded_string = imagen_a_base64("foto_usuario.jpg")
                     state["foto_base64"] = encoded_string
                     img_preview.src_base64 = encoded_string
-                    img_preview.src = None
                     
                     # Estilo de éxito definitivo
                     btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
