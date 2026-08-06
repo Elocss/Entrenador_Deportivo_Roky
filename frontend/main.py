@@ -565,6 +565,23 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
         try:
             lbl_error.value = ""
             log_debug(f"[Registrar] on_registrar ejecutándose. Nombre={txt_nombre.value}, Peso={txt_peso.value}, Altura={txt_altura.value}")
+            
+            # 1. CONDICIONAL DE VALIDACIÓN ESTRICTA (Campos y Foto Base64)
+            foto_perfil = page.data.get("foto_perfil") if page.data else None
+            has_valid_photo = False
+            if foto_perfil and isinstance(foto_perfil, str) and (foto_perfil.startswith("data:image/jpeg;base64,") or foto_perfil.startswith("data:image/png;base64,")):
+                has_valid_photo = True
+
+            if not txt_nombre.value or not txt_peso.value or not txt_altura.value or not dd_deporte.value or not has_valid_photo:
+                # Detener flujo y mostrar SnackBar de alerta
+                page.snack_bar = ft.SnackBar(
+                    content=ft.Text("Por favor, completa tus datos de Peso, Deporte y sube tu foto para calcular tu rutina.", color="#FFFFFF"),
+                    bgcolor="#FF3333"
+                )
+                page.snack_bar.open = True
+                page.update()
+                return
+
             if not txt_nombre.value:
                 lbl_error.value = "Por favor ingresa tu nombre."
                 page.update()
@@ -635,8 +652,8 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                 files = {"foto": ("foto_usuario.jpg", foto_bytes if foto_bytes else b"dummy_bytes", "image/jpeg")}
                 payload = {
                     "nombre": txt_nombre.value,
-                    "peso": txt_peso.value,
-                    "altura": txt_altura.value,
+                    "peso": str(peso),
+                    "altura": str(altura),
                     "deporte": dd_deporte.value,
                     "plan_meses": str(state.get("plan_meses", 3)),
                     "duracion": "3"
