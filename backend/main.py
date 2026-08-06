@@ -291,8 +291,10 @@ def generar_rutina_con_gemini(nombre: str, peso: float, altura: float, deporte: 
         
     return None
 
-# 4. ENDPOINT POST /registro
+# 4. ENDPOINT POST /registro y alias /api/v1/usuarios
 @app.post("/registro", response_model=dict, status_code=201)
+@app.post("/api/v1/usuarios", response_model=dict, status_code=201)
+@app.post("/api/v1/usuarios/", response_model=dict, status_code=201)
 async def registrar_usuario(
     background_tasks: BackgroundTasks,
     nombre: str = Form(...),
@@ -417,6 +419,8 @@ async def registrar_usuario(
     return plan
 
 @app.get("/registro/status")
+@app.get("/api/v1/usuarios/status")
+@app.get("/api/v1/usuarios/status/")
 def obtener_estado_avatar(nombre: str):
     try:
         doc_id = nombre.strip().lower().replace(" ", "_")
