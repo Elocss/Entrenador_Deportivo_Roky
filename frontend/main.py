@@ -897,9 +897,20 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
     # Contenedores dinámicos instanciados arriba para evitar NameErrors en closure de Python
     exercises_container = ft.Column(spacing=6)
     
-    # Evitar renderizar "PROCESANDO" como URL de imagen y cargar el avatar estilizado de Roky
+    # Obtener imagen segura de inicio (foto_perfil -> foto_base64 -> pixel transparente)
+    foto_src = None
+    if page.data and isinstance(page.data, dict) and page.data.get("foto_perfil"):
+        foto_src = page.data["foto_perfil"]
+    elif page.data and isinstance(page.data, dict) and page.data.get("foto_base64"):
+        foto_src = f"data:image/jpeg;base64,{page.data['foto_base64']}"
+    elif state.get("foto_base64"):
+        foto_src = f"data:image/jpeg;base64,{state['foto_base64']}"
+        
+    if not foto_src:
+        foto_src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+
     has_avatar = True
-    img_avatar_src = "https://api.dicebear.com/7.x/bottts/svg?seed=roky_fat_gordito"
+    img_avatar_src = foto_src
 
     img_avatar = ft.Image(
         src=img_avatar_src,
@@ -957,25 +968,39 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
             ]
 
     def actualizar_simulacion(mes):
-        # 1. ACTUALIZACIÓN DINÁMICA DE TEXTOS DE IA (Proyecciones predictivas de negocio)
+        # Obtener imagen segura (foto_perfil -> foto_base64 -> pixel transparente)
+        foto_src = None
+        if page.data and isinstance(page.data, dict) and page.data.get("foto_perfil"):
+            foto_src = page.data["foto_perfil"]
+        elif page.data and isinstance(page.data, dict) and page.data.get("foto_base64"):
+            foto_src = f"data:image/jpeg;base64,{page.data['foto_base64']}"
+        elif state.get("foto_base64"):
+            foto_src = f"data:image/jpeg;base64,{state['foto_base64']}"
+            
+        if not foto_src:
+            foto_src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+
+        img_avatar.src = foto_src
+
+        # 1. ACTUALIZACIÓN DINÁMICA DE TEXTOS DE IA Y SIMULACIÓN VISUAL (Escala y bordes)
         if mes == 0:
             peso_estimado = 69.0
             musculo_ganado = 0.0
             grasa_estimada = 22.0
-            # Estado Mes 0: Avatar base de Roky con facciones iniciales base (chubby)
-            img_avatar.src = "https://api.dicebear.com/7.x/bottts/svg?seed=roky_fat_gordito"
+            img_avatar.scale = 1.0
+            avatar_card.border = ft.Border.all(2, "#00FF66")
         elif mes <= 3:
             peso_estimado = 65.5
             musculo_ganado = 1.2
             grasa_estimada = 18.0
-            # Estado Mes 3: Avatar modificado, más delgado y con cara perfilada
-            img_avatar.src = "https://api.dicebear.com/7.x/bottts/svg?seed=roky_thinner_profiled"
+            img_avatar.scale = 0.9  # Reducir 10% tamaño visual
+            avatar_card.border = ft.Border.all(4, "#00FF66")  # Borde verde brillante grueso
         else:
             peso_estimado = 63.0
             musculo_ganado = 2.8
             grasa_estimada = 14.0
-            # Estado Mes 6: Avatar con músculos visibles y definición atlética
-            img_avatar.src = "https://api.dicebear.com/7.x/bottts/svg?seed=roky_athletic_muscles"
+            img_avatar.scale = 0.8  # Reducir 20% tamaño visual
+            avatar_card.border = ft.Border.all(4, "#00F0FF")  # Borde cian cyberpunk
         
         lbl_weight.value = f"{peso_estimado} kg"
         lbl_fat.value = f"{grasa_estimada}%"
@@ -986,9 +1011,6 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
         state["peso_estimado"] = peso_estimado
         
         fase_title, ejercicios = get_rutina_mes(mes)
-        
-        # Escalar avatar levemente
-        img_avatar.scale = 1.0 - (mes * 0.015)
             
         # Actualizar ejercicios del panel inferior en tiempo real
         exercises_container.controls.clear()
@@ -1153,8 +1175,15 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
     actualizar_simulacion(0)
 
     def on_slider_change(e):
-        actualizar_simulacion(int(e.control.value))
-        page.update()
+        try:
+            actualizar_simulacion(int(e.control.value))
+        except Exception as ex:
+            print(f"[Slider Error] Fallo al actualizar simulación: {ex}")
+        finally:
+            try:
+                page.update()
+            except Exception:
+                pass
 
     slider = ft.Slider(
         min=0,
