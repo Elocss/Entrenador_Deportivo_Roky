@@ -116,7 +116,71 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
         visible=not state.get("foto_capturada", False)
     )
 
-    file_picker = state["file_picker"]
+    def cuando_seleccione_archivo(e: ft.FilePickerResultEvent):
+        try:
+            if e.files and len(e.files) > 0:
+                file_info = e.files[0]
+                log_debug(f"[FilePicker] Archivo seleccionado por usuario: name={file_info.name}, path={file_info.path}")
+                
+                # Obtener bytes
+                foto_bytes = file_info.bytes
+                if not foto_bytes and file_info.path:
+                    import os
+                    if os.path.exists(file_info.path):
+                        with open(file_info.path, "rb") as f:
+                            foto_bytes = f.read()
+                            
+                if foto_bytes:
+                    # 1. BUG DE CAPTURA/SUBIR: Escribir físicamente a 'foto_usuario.jpg' para homologar con el canal de la cámara
+                    with open('foto_usuario.jpg', 'wb') as f:
+                        f.write(foto_bytes)
+                    log_debug("[FilePicker] Copia guardada físicamente en foto_usuario.jpg")
+                    
+                    state["foto_capturada"] = True
+                    state["foto_name"] = "foto_usuario.jpg"
+                    state["foto_bytes"] = foto_bytes
+                    state["foto_url"] = "foto_usuario.jpg"
+                    
+                    import base64
+                    encoded_string = base64.b64encode(foto_bytes).decode('utf-8')
+                    state["foto_base64"] = encoded_string
+                    img_preview.src_base64 = encoded_string
+                    
+                    img_preview.visible = True
+                    icon_preview.visible = False
+                    
+                    # Actualizar estilo de botón upload
+                    btn_upload.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
+                    btn_upload.icon = ft.Icons.CHECK_CIRCLE
+                    btn_upload.icon_color = "#00FF66"
+                    
+                    # Restaurar botón de cámara
+                    btn_photo.content = ft.Text("Capturar Foto Frontal", color="#FFFFFF")
+                    btn_photo.icon = ft.Icons.CAMERA_ALT
+                    btn_photo.icon_color = "#00F0FF"
+                    
+                    page.update()
+                else:
+                    raise Exception("No se pudieron extraer los bytes de la imagen seleccionada.")
+            else:
+                log_debug("[FilePicker] Cancelado por el usuario.")
+        except Exception as file_err:
+            log_debug(f"[FilePicker Error] {file_err}")
+            page.snack_bar = ft.SnackBar(
+                content=ft.Text(f"Error al subir archivo: {file_err}", color="#FFFFFF"),
+                bgcolor="#FF3333"
+            )
+            page.snack_bar.open = True
+            page.update()
+
+    file_picker = ft.FilePicker(on_result=cuando_seleccione_archivo)
+    
+    # Limpiar previos pickers en overlay para evitar duplicados
+    for ctrl in page.overlay[:]:
+        if isinstance(ctrl, ft.FilePicker):
+            page.overlay.remove(ctrl)
+            
+    page.overlay.append(file_picker)
 
     async def capturar_foto(e):
         import cv2
@@ -203,6 +267,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     _, buffer = cv2.imencode('.jpg', frame_mirror)
                     frame_bytes = buffer.tobytes()
                     state["last_frame"] = frame_bytes
+                    state["last_frame_numpy"] = frame_mirror
                     
                     # Convertir a base64 y transmitir en vivo a Flet
                     encoded_string = base64.b64encode(frame_bytes).decode('utf-8')
@@ -219,11 +284,22 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                 log_debug("[Camera Thread] Cámara liberada de forma segura.")
                 
                 # Al salir del bucle (al presionar "Capturar Ahora"), guardamos el último frame
-                last_frame = state.get("last_frame")
-                if last_frame:
+                last_frame_numpy = state.get("last_frame_numpy")
+                if last_frame_numpy is not None:
+                    # 1. BUG DE CAPTURA: Guardar físicamente usando cv2.imwrite
+                    cv2.imwrite('foto_usuario.jpg', last_frame_numpy)
+                    log_debug("[Camera Thread] Frame guardado físicamente en foto_usuario.jpg")
+                    
+                    try:
+                        with open('foto_usuario.jpg', 'rb') as f:
+                            foto_bytes = f.read()
+                    except Exception as io_err:
+                        log_debug(f"[Camera Thread] Fallo de lectura del archivo guardado: {io_err}")
+                        foto_bytes = state.get("last_frame") # Fallback en memoria si falla I/O
+                        
                     state["foto_capturada"] = True
                     state["foto_name"] = "foto_usuario.jpg"
-                    state["foto_bytes"] = last_frame
+                    state["foto_bytes"] = foto_bytes
                     state["foto_url"] = "foto_usuario.jpg"
                     
                     # Estilo de éxito definitivo
@@ -248,56 +324,14 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
         state["camera_running"] = False
         
         try:
-            if file_picker not in page.overlay:
-                page.overlay.append(file_picker)
-                page.update()
-                
-            files = await file_picker.pick_files(
+            await file_picker.pick_files(
                 allow_multiple=False,
-                allowed_extensions=["jpg", "png", "jpeg"]
+                allowed_extensions=["jpg", "jpeg", "png"]
             )
-            
-            if files and len(files) > 0:
-                file_info = files[0]
-                log_debug(f"[FilePicker] Selección: name={file_info.name}, path={file_info.path}")
-                
-                foto_bytes = file_info.bytes
-                if not foto_bytes and file_info.path:
-                    import os
-                    if os.path.exists(file_info.path):
-                        with open(file_info.path, "rb") as f:
-                            foto_bytes = f.read()
-                            
-                if foto_bytes:
-                    state["foto_capturada"] = True
-                    state["foto_name"] = file_info.name
-                    state["foto_bytes"] = foto_bytes
-                    state["foto_url"] = file_info.path or file_info.name
-                    
-                    import base64
-                    encoded_string = base64.b64encode(foto_bytes).decode('utf-8')
-                    state["foto_base64"] = encoded_string
-                    img_preview.src_base64 = encoded_string
-                    
-                    img_preview.visible = True
-                    icon_preview.visible = False
-                    
-                    btn_upload.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
-                    btn_upload.icon = ft.Icons.CHECK_CIRCLE
-                    btn_upload.icon_color = "#00FF66"
-                    
-                    # Restaurar botón de cámara
-                    btn_photo.content = ft.Text("Capturar Foto Frontal", color="#FFFFFF")
-                    btn_photo.icon = ft.Icons.CAMERA_ALT
-                    btn_photo.icon_color = "#00F0FF"
-                    
-                    page.update()
-                else:
-                    raise Exception("No se pudieron extraer los bytes de la imagen.")
         except Exception as file_err:
-            log_debug(f"[FilePicker Error] {file_err}")
+            log_debug(f"[FilePicker Launch Error] {file_err}")
             page.snack_bar = ft.SnackBar(
-                content=ft.Text(f"Error al subir archivo: {file_err}", color="#FFFFFF"),
+                content=ft.Text(f"Error al abrir selector: {file_err}", color="#FFFFFF"),
                 bgcolor="#FF3333"
             )
             page.snack_bar.open = True
