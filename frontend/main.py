@@ -186,6 +186,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     page.data["foto_name"] = "foto_usuario.jpg"
                     page.data["foto_url"] = "foto_usuario.jpg"
                     page.data["foto_base64"] = encoded_string
+                    page.data["foto_perfil"] = f"data:image/jpeg;base64,{encoded_string}"
                     
                     img_preview.visible = True
                     icon_preview.visible = False
@@ -290,6 +291,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                 page.data["foto_name"] = "foto_usuario.jpg"
                 page.data["foto_url"] = "foto_usuario.jpg"
                 page.data["foto_base64"] = base64_data
+                page.data["foto_perfil"] = f"data:image/jpeg;base64,{base64_data}"
                 
                 # Estilo de éxito definitivo
                 btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
@@ -745,24 +747,31 @@ def vista_plan(page: ft.Page, state: dict, navegar_a):
     avatar_url = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={avatar_seed}&mood[]=happy"
     
     # Recuperamos la foto del estado global para persistencia
+    # Recuperamos la foto del estado global para persistencia
     foto_base64 = None
-    if page.data and isinstance(page.data, dict) and page.data.get("foto_base64"):
-        foto_base64 = page.data["foto_base64"]
-    elif state.get("foto_base64"):
-        foto_base64 = state.get("foto_base64")
-        
-    if foto_base64:
-        avatar_img_src = f"data:image/jpeg;base64,{foto_base64}"
+    if page.data and isinstance(page.data, dict) and page.data.get("foto_perfil"):
+        avatar_img_src = page.data["foto_perfil"]
+        has_foto = True
     else:
-        avatar_img_src = avatar_url
+        if page.data and isinstance(page.data, dict) and page.data.get("foto_base64"):
+            foto_base64 = page.data["foto_base64"]
+        elif state.get("foto_base64"):
+            foto_base64 = state.get("foto_base64")
+            
+        if foto_base64:
+            avatar_img_src = f"data:image/jpeg;base64,{foto_base64}"
+            has_foto = True
+        else:
+            avatar_img_src = avatar_url
+            has_foto = False
         
     avatar_display = ft.Container(
         content=ft.Image(
             src=avatar_img_src, 
             width=110, 
             height=110, 
-            fit="cover" if foto_base64 else "contain",
-            border_radius=55 if foto_base64 else 0
+            fit="cover" if has_foto else "contain",
+            border_radius=55 if has_foto else 0
         ),
         width=120,
         height=120,
@@ -888,10 +897,16 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
     # Contenedores dinámicos instanciados arriba para evitar NameErrors en closure de Python
     exercises_container = ft.Column(spacing=6)
     
-    # Evitar renderizar "PROCESANDO" como URL de imagen
-    has_avatar = state.get("avatar_comic_url") and state.get("avatar_comic_url") != "PROCESANDO"
+    # Evitar renderizar "PROCESANDO" como URL de imagen y cargar foto_perfil si existe
+    if page.data and isinstance(page.data, dict) and page.data.get("foto_perfil"):
+        has_avatar = True
+        img_avatar_src = page.data["foto_perfil"]
+    else:
+        has_avatar = state.get("avatar_comic_url") and state.get("avatar_comic_url") != "PROCESANDO"
+        img_avatar_src = state.get("avatar_comic_url", "") if has_avatar else ""
+
     img_avatar = ft.Image(
-        src=state.get("avatar_comic_url", "") if has_avatar else "",
+        src=img_avatar_src,
         width=130,
         height=130,
         fit="contain",
@@ -981,16 +996,19 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
         # Requisitos de visualización del avatar (Mes 0 vs Mes > 0)
         if mes == 0:
             # Mostrar la foto de perfil en Base64 real del usuario
-            foto_base64 = None
-            if page.data and isinstance(page.data, dict) and page.data.get("foto_base64"):
-                foto_base64 = page.data["foto_base64"]
-            elif state.get("foto_base64"):
-                foto_base64 = state.get("foto_base64")
-                
-            if foto_base64:
-                img_avatar.src = f"data:image/jpeg;base64,{foto_base64}"
+            if page.data and isinstance(page.data, dict) and page.data.get("foto_perfil"):
+                img_avatar.src = page.data["foto_perfil"]
             else:
-                img_avatar.src = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
+                foto_base64 = None
+                if page.data and isinstance(page.data, dict) and page.data.get("foto_base64"):
+                    foto_base64 = page.data["foto_base64"]
+                elif state.get("foto_base64"):
+                    foto_base64 = state.get("foto_base64")
+                    
+                if foto_base64:
+                    img_avatar.src = f"data:image/jpeg;base64,{foto_base64}"
+                else:
+                    img_avatar.src = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
         else:
             # Mostrar el avatar comic estilizado generado por la IA si existe, de lo contrario un avatar por defecto
             if state.get("avatar_comic_url") and state.get("avatar_comic_url") != "PROCESANDO":
@@ -1068,20 +1086,34 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
         import time
         import requests
         
+        # Si la foto de perfil ya está disponible, la inyectamos y actualizamos de inmediato sin esperar
+        if page.data and isinstance(page.data, dict) and page.data.get("foto_perfil"):
+            img_avatar.src = page.data["foto_perfil"]
+            avatar_card.content = img_avatar
+            avatar_card.border = ft.Border.all(2, "#00FF66")
+            actualizar_simulacion(0)
+            try:
+                page.update()
+            except Exception:
+                pass
+        
         # 1. Esperar a que la petición del plan de entrenamiento finalice
         while state.get("loading_plan", True):
             time.sleep(0.5)
             
         # Petición finalizada con éxito o error, actualizar la UI con el plan
         # Colocar la foto de perfil en Base64 cargada en memoria como avatar temporal de Roky
-        foto_base64 = None
-        if page.data and isinstance(page.data, dict) and page.data.get("foto_base64"):
-            foto_base64 = page.data["foto_base64"]
-        elif state.get("foto_base64"):
-            foto_base64 = state.get("foto_base64")
-            
-        if foto_base64:
-            img_avatar.src = f"data:image/jpeg;base64,{foto_base64}"
+        if page.data and isinstance(page.data, dict) and page.data.get("foto_perfil"):
+            img_avatar.src = page.data["foto_perfil"]
+        else:
+            foto_base64 = None
+            if page.data and isinstance(page.data, dict) and page.data.get("foto_base64"):
+                foto_base64 = page.data["foto_base64"]
+            elif state.get("foto_base64"):
+                foto_base64 = state.get("foto_base64")
+                
+            if foto_base64:
+                img_avatar.src = f"data:image/jpeg;base64,{foto_base64}"
             
         # Ocultar anillo de carga y mostrar el avatar del usuario
         avatar_card.content = img_avatar
