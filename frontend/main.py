@@ -520,7 +520,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     }
                     response = requests.post(url, data=data, files=files, timeout=15.0)
                 
-                if response.status_code == 201:
+                if response.status_code in [200, 201]:
                     plan_data = response.json()
                     state["plan_data"] = plan_data
                     state["loading_plan"] = False
@@ -549,7 +549,8 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                         print("[ERROR LLAVES API] El JSON llegó con estas llaves:", plan_data.keys() if plan_data else "None")
                 else:
                     state["loading_plan"] = False
-                    print(f"[API] Error del backend ({response.status_code}): {response.text}")
+                    print(f"[ERROR CRÍTICO API] El backend rechazó la petición con código: {response.status_code}")
+                    print(f"Contenido del error: {response.text}")
             except Exception as ex:
                 state["loading_plan"] = False
                 print(f"[API] Error de conexión con el backend: {ex}")
@@ -673,7 +674,8 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     else:
                         print("[ERROR LLAVES] El JSON llegó con estas llaves:", plan_data.keys() if plan_data else "None")
                 else:
-                     print(f"--- [ERROR DE RED INGENIERÍA]: Status Code {response.status_code} - {response.text} ---")
+                    print(f"[ERROR CRÍTICO API] El backend rechazó la petición con código: {response.status_code}")
+                    print(f"Contenido del error: {response.text}")
             except Exception as e:
                 print(f"--- [ERROR DE RED INGENIERÍA]: {str(e)} ---")
                 
