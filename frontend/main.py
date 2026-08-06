@@ -833,7 +833,137 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
     lbl_muscle = ft.Text("+0.0 kg", size=13, weight=ft.FontWeight.BOLD, color="#00FF66")
     lbl_fat = ft.Text(f"{grasa_inicial}%", size=13, weight=ft.FontWeight.BOLD, color="#00FF66") # Verde neón
     lbl_slider_mes = ft.Text(f"Mes 0 de {plan_meses}", size=12, weight=ft.FontWeight.BOLD, color="#00F0FF")
+
+    # Contenedores dinámicos instanciados arriba para evitar NameErrors en closure de Python
+    exercises_container = ft.Column(spacing=6)
     
+    # Evitar renderizar "PROCESANDO" como URL de imagen
+    has_avatar = state.get("avatar_comic_url") and state.get("avatar_comic_url") != "PROCESANDO"
+    img_avatar = ft.Image(
+        src=state.get("avatar_comic_url", "") if has_avatar else "",
+        width=130,
+        height=130,
+        fit="contain",
+        animate_scale=ft.Animation(300, "easeOut")
+    )
+
+    # Definición de funciones auxiliares asociadas al estado antes de armar la UI
+    def get_rutina_mes(mes):
+        plan_data = state.get("plan_data")
+        if plan_data and "bloques_entrenamiento" in plan_data:
+            bloques = plan_data["bloques_entrenamiento"]
+            for b in bloques:
+                if b.get("mes") == mes:
+                    # Encontrar el primer día con ejercicios
+                    semanas = b.get("semanas", [])
+                    if semanas:
+                        dias = semanas[0].get("dias", [])
+                        if dias:
+                            dia1 = dias[0]
+                            exs = []
+                            for ej in dia1.get("ejercicios", []):
+                                exs.append({
+                                    "nombre": ej.get("nombre"),
+                                    "series": ej.get("series", 4),
+                                    "reps": ej.get("repeticiones", 12)
+                                })
+                            return b.get("enfoque_mensual", f"Fase {mes}"), exs
+                            
+        # Fallback al hardcode
+        if mes == 0:
+            return "Rutina de Entrada", [
+                {"nombre": "Movilidad Articular", "series": 3, "reps": 10},
+                {"nombre": "Caminata Moderada", "series": 1, "reps": 15}
+            ]
+        elif mes <= 3:
+            return "Fase 1: Hipertrofia & Core", [
+                {"nombre": "Sentadillas Cyber", "series": 4, "reps": 15},
+                {"nombre": "Flexiones Neón", "series": 3, "reps": 12},
+                {"nombre": "Plancha Cuántica", "series": 3, "reps": 45}
+            ]
+        elif mes <= 6:
+            return "Fase 2: Fuerza y Quema", [
+                {"nombre": "Sentadillas con Salto", "series": 4, "reps": 12},
+                {"nombre": "Flexiones Diamante Cyber", "series": 4, "reps": 10},
+                {"nombre": "Plancha Dinámica", "series": 3, "reps": 60}
+            ]
+        else:
+            return "Fase 3: Tonificación Máxima", [
+                {"nombre": "Pistol Squats (Asistidas)", "series": 4, "reps": 8},
+                {"nombre": "Flexiones Explosivas", "series": 4, "reps": 10},
+                {"nombre": "Plancha Spiderman", "series": 3, "reps": 60}
+            ]
+
+    def actualizar_simulacion(mes):
+        # Valores por defecto
+        peso_estimado = round(peso_inicial - (mes * 0.8), 1)
+        grasa_estimada = round(max(5.0, grasa_inicial - (mes * 0.6)), 1)
+        musculo_ganado = round(mes * 0.4, 1)
+        
+        # Intentar extraer de la proyección física real de la IA
+        plan_data = state.get("plan_data")
+        if plan_data and "proyeccion_fisica" in plan_data:
+            proy = plan_data["proyeccion_fisica"]
+            for p in proy:
+                if p.get("mes") == mes:
+                    peso_estimado = p.get("peso_estimado_kg", peso_estimado)
+                    # Estimación aproximada para grasa y músculo basadas en la pérdida real de peso
+                    diff_peso = peso_inicial - peso_estimado
+                    grasa_estimada = round(max(5.0, grasa_inicial - (diff_peso * 0.7)), 1)
+                    musculo_ganado = round(max(0.0, diff_peso * 0.3 + mes * 0.2), 1)
+                    break
+        
+        lbl_weight.value = f"{peso_estimado} kg"
+        lbl_fat.value = f"{grasa_estimada}%"
+        lbl_muscle.value = f"+{musculo_ganado} kg"
+        lbl_mes_actual.value = f"Mes {mes} de {plan_meses}"
+        lbl_slider_mes.value = f"Mes {mes} de {plan_meses}"
+        
+        state["peso_estimado"] = peso_estimado
+        
+        fase_title, ejercicios = get_rutina_mes(mes)
+        
+        # Escalar avatar levemente si está cargado
+        if state.get("avatar_comic_url"):
+            img_avatar.scale = 1.0 - (mes * 0.015)
+            
+        # Requisitos de visualización del avatar (Mes 0 vs Mes > 0)
+        if mes == 0:
+            # Mostrar la foto de perfil en Base64 real del usuario
+            foto_base64 = None
+            if page.data and isinstance(page.data, dict) and page.data.get("foto_base64"):
+                foto_base64 = page.data["foto_base64"]
+            elif state.get("foto_base64"):
+                foto_base64 = state.get("foto_base64")
+                
+            if foto_base64:
+                img_avatar.src = f"data:image/jpeg;base64,{foto_base64}"
+            else:
+                img_avatar.src = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
+        else:
+            # Mostrar el avatar comic estilizado generado por la IA si existe, de lo contrario un avatar por defecto
+            if state.get("avatar_comic_url") and state.get("avatar_comic_url") != "PROCESANDO":
+                img_avatar.src = state["avatar_comic_url"]
+            else:
+                img_avatar.src = f"https://api.dicebear.com/7.x/pixel-art/svg?seed={state.get('avatar_seed', 'roky')}&mood[]=happy"
+            
+        # Actualizar ejercicios del panel inferior en tiempo real
+        exercises_container.controls.clear()
+        exercises_container.controls.append(
+            ft.Text("Entrenamiento de Hoy", size=12, color="#00FF66", weight=ft.FontWeight.BOLD)
+        )
+        for ej in ejercicios:
+            exercises_container.controls.append(
+                ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.PLAY_ARROW_ROUNDED, size=14, color="#00F0FF"),
+                        ft.Text(f"{ej['nombre']}", size=13, color="#FFFFFF", weight=ft.FontWeight.W_500),
+                        ft.Text(f"({ej['series']}x{ej['reps']})", size=11, color="#8B949E")
+                    ],
+                    spacing=5
+                )
+            )
+
     # Función para crear contenedores flotantes de estadísticas
     def create_stat_box(title, control, icon, color):
         return ft.Container(
@@ -861,7 +991,7 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
     box_muscle = create_stat_box("MÚSCULO GANADO", lbl_muscle, ft.Icons.FITNESS_CENTER, "#00FF66")
     box_fat = create_stat_box("GRASA CORPORAL", lbl_fat, ft.Icons.PERCENT, "#00FF66")
 
-    # 2. Componente de Carga y Tarjeta Central del Avatar
+    # Componente de Carga y Tarjeta Central del Avatar
     avatar_loading = ft.Column(
         controls=[
             ft.ProgressRing(color="#00FF66", width=40, height=40),
@@ -870,17 +1000,6 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         alignment=ft.MainAxisAlignment.CENTER,
         spacing=8
-    )
-    
-    # Evitar renderizar "PROCESANDO" como URL de imagen
-    has_avatar = state.get("avatar_comic_url") and state.get("avatar_comic_url") != "PROCESANDO"
-
-    img_avatar = ft.Image(
-        src=state.get("avatar_comic_url", "") if has_avatar else "",
-        width=130,
-        height=130,
-        fit="contain",
-        animate_scale=ft.Animation(300, "easeOut")
     )
     
     avatar_card = ft.Container(
@@ -973,113 +1092,12 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
         spacing=10
     )
 
-    exercises_container = ft.Column(spacing=6)
-    
-    def get_rutina_mes(mes):
-        # Intentar leer desde plan_data primero
-        plan_data = state.get("plan_data")
-        if plan_data and "bloques_entrenamiento" in plan_data:
-            bloques = plan_data["bloques_entrenamiento"]
-            for b in bloques:
-                if b.get("mes") == mes:
-                    # Encontrar el primer día con ejercicios
-                    semanas = b.get("semanas", [])
-                    if semanas:
-                        dias = semanas[0].get("dias", [])
-                        if dias:
-                            dia1 = dias[0]
-                            exs = []
-                            for ej in dia1.get("ejercicios", []):
-                                exs.append({
-                                    "nombre": ej.get("nombre"),
-                                    "series": ej.get("series", 4),
-                                    "reps": ej.get("repeticiones", 12)
-                                })
-                            return b.get("enfoque_mensual", f"Fase {mes}"), exs
-                            
-        # Fallback al hardcode
-        if mes == 0:
-            return "Rutina de Entrada", [
-                {"nombre": "Movilidad Articular", "series": 3, "reps": 10},
-                {"nombre": "Caminata Moderada", "series": 1, "reps": 15}
-            ]
-        elif mes <= 3:
-            return "Fase 1: Hipertrofia & Core", [
-                {"nombre": "Sentadillas Cyber", "series": 4, "reps": 15},
-                {"nombre": "Flexiones Neón", "series": 3, "reps": 12},
-                {"nombre": "Plancha Cuántica", "series": 3, "reps": 45}
-            ]
-        elif mes <= 6:
-            return "Fase 2: Fuerza y Quema", [
-                {"nombre": "Sentadillas con Salto", "series": 4, "reps": 12},
-                {"nombre": "Flexiones Diamante Cyber", "series": 4, "reps": 10},
-                {"nombre": "Plancha Dinámica", "series": 3, "reps": 60}
-            ]
-        else:
-            return "Fase 3: Tonificación Máxima", [
-                {"nombre": "Pistol Squats (Asistidas)", "series": 4, "reps": 8},
-                {"nombre": "Flexiones Explosivas", "series": 4, "reps": 10},
-                {"nombre": "Plancha Spiderman", "series": 3, "reps": 60}
-            ]
-
-    def actualizar_simulacion(mes):
-        # Valores por defecto
-        peso_estimado = round(peso_inicial - (mes * 0.8), 1)
-        grasa_estimada = round(max(5.0, grasa_inicial - (mes * 0.6)), 1)
-        musculo_ganado = round(mes * 0.4, 1)
-        
-        # Intentar extraer de la proyección física real de la IA
-        plan_data = state.get("plan_data")
-        if plan_data and "proyeccion_fisica" in plan_data:
-            proy = plan_data["proyeccion_fisica"]
-            for p in proy:
-                if p.get("mes") == mes:
-                    peso_estimado = p.get("peso_estimado_kg", peso_estimado)
-                    # Estimación aproximada para grasa y músculo basadas en la pérdida real de peso
-                    diff_peso = peso_inicial - peso_estimado
-                    grasa_estimada = round(max(5.0, grasa_inicial - (diff_peso * 0.7)), 1)
-                    musculo_ganado = round(max(0.0, diff_peso * 0.3 + mes * 0.2), 1)
-                    break
-        
-        lbl_weight.value = f"{peso_estimado} kg"
-        lbl_fat.value = f"{grasa_estimada}%"
-        lbl_muscle.value = f"+{musculo_ganado} kg"
-        lbl_mes_actual.value = f"Mes {mes} de {plan_meses}"
-        lbl_slider_mes.value = f"Mes {mes} de {plan_meses}"
-        
-        state["peso_estimado"] = peso_estimado
-        
-        fase_title, ejercicios = get_rutina_mes(mes)
-        
-        # Escalar avatar levemente si está cargado
-        if state.get("avatar_comic_url"):
-            img_avatar.scale = 1.0 - (mes * 0.015)
-            
-        # Actualizar ejercicios del panel inferior en tiempo real
-        exercises_container.controls.clear()
-        exercises_container.controls.append(
-            ft.Text("Entrenamiento de Hoy", size=12, color="#00FF66", weight=ft.FontWeight.BOLD)
-        )
-        for ej in ejercicios:
-            exercises_container.controls.append(
-                ft.Row(
-                    controls=[
-                        ft.Icon(ft.Icons.PLAY_ARROW_ROUNDED, size=14, color="#00F0FF"),
-                        ft.Text(f"{ej['nombre']}", size=13, color="#FFFFFF", weight=ft.FontWeight.W_500),
-                        ft.Text(f"({ej['series']}x{ej['reps']})", size=11, color="#8B949E")
-                    ],
-                    spacing=5
-                )
-            )
-
-    # Inicializar estado inicial
+    # Inicializar estado inicial de la simulación (Mes 0)
     actualizar_simulacion(0)
 
     def on_slider_change(e):
         actualizar_simulacion(int(e.control.value))
         page.update()
-
-
 
     slider = ft.Slider(
         min=0,
