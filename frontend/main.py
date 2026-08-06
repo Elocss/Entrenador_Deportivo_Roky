@@ -471,7 +471,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
         
         def api_call():
             try:
-                url = "https://entrenador-deportivo-roky-429506810769.europe-west1.run.app/api/v1/usuarios/"
+                url = "https://entrenador-deportivo-roky-429506810769.europe-west1.run.app/registro"
                 
                 # Intentar abrir la foto físicamente del disco
                 ruta_foto = "foto_usuario.jpg"
@@ -640,7 +640,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                 print("--- [INGENIERÍA ROXY] ENVIANDO DATOS A CLOUD RUN... ---")
                 
                 # Realizar la petición HTTP a la URL oficial del backend
-                response = requests.post("https://entrenador-deportivo-roky-429506810769.europe-west1.run.app/api/v1/usuarios/", data=payload, files=files, timeout=15)
+                response = requests.post("https://entrenador-deportivo-roky-429506810769.europe-west1.run.app/registro", data=payload, files=files, timeout=15)
                 
                 # Guardamos la respuesta en el estado global para que la simulación lo lea
                 if response.status_code in [200, 201]:
@@ -1129,7 +1129,7 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
         if not nombre_req:
             return
             
-        url = f"https://entrenador-deportivo-roky-429506810769.europe-west1.run.app/api/v1/usuarios/status?nombre={nombre_req}"
+        url = f"https://entrenador-deportivo-roky-429506810769.europe-west1.run.app/registro/status?nombre={nombre_req}"
         for _ in range(30):  # Limitar a 30 segundos
             try:
                 response = requests.get(url, timeout=2.0)
