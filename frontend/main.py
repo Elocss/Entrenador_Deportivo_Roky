@@ -196,7 +196,54 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
         # Si la cámara ya está corriendo, el botón actúa como "Capturar Ahora"
         if state.get("camera_running", False):
             log_debug("[Camera] Clic en 'Capturar Ahora'. Deteniendo transmisión...")
+            
+            # 1. Cambiar la bandera para detener el bucle del hilo de inmediato
             state["camera_running"] = False
+            
+            # 2. Darle un pequeño margen de milisegundos al hilo para salir de su ciclo
+            time.sleep(0.1)
+            
+            # 3. Obtener el objeto capture y liberarlo físicamente
+            cap = state.get("active_cap")
+            if cap is not None:
+                try:
+                    cap.release()
+                    log_debug("[Camera] Cámara liberada físicamente desde el botón.")
+                except Exception as ex:
+                    log_debug(f"[Camera] Error al liberar cap: {ex}")
+            
+            # 4. Obtener y guardar el último frame físicamente
+            last_frame_numpy = state.get("last_frame_numpy")
+            if last_frame_numpy is not None:
+                cv2.imwrite("foto_usuario.jpg", last_frame_numpy)
+                log_debug("[Camera] Último frame guardado físicamente en foto_usuario.jpg")
+                
+                try:
+                    # 5. Convertir a Base64 y fijar la propiedad de forma definitiva
+                    base64_data = imagen_a_base64("foto_usuario.jpg")
+                    state["foto_capturada"] = True
+                    state["foto_name"] = "foto_usuario.jpg"
+                    with open("foto_usuario.jpg", "rb") as f:
+                        state["foto_bytes"] = f.read()
+                    state["foto_url"] = "foto_usuario.jpg"
+                    state["foto_base64"] = base64_data
+                    
+                    img_preview.src = f"data:image/jpeg;base64,{base64_data}"
+                    
+                    # Estilo de éxito definitivo
+                    btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
+                    btn_photo.icon = ft.Icons.CHECK_CIRCLE
+                    btn_photo.icon_color = "#00FF66"
+                except Exception as err:
+                    log_debug(f"[Camera] Error al procesar base64: {err}")
+            else:
+                # Si no hay frame, restaurar estado original
+                btn_photo.content = ft.Text("Capturar Foto Frontal", color="#FFFFFF")
+                btn_photo.icon = ft.Icons.CAMERA_ALT
+                btn_photo.icon_color = "#00F0FF"
+            
+            # 6. Forzar redibujado de la interfaz
+            page.update()
             return
 
         # Si no está corriendo, iniciamos la cámara en un hilo secundario
@@ -252,14 +299,17 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
 
             log_debug(f"[Camera Thread] Transmisión en vivo iniciada (índice {cam_index_worked}).")
             
+            # Guardamos cap en el estado para poder liberarlo desde el hilo principal
+            state["active_cap"] = cap
+            
             # Cambiar visibilidad de preview
             img_preview.visible = True
             icon_preview.visible = False
             page.update()
 
             try:
-                # Bucle de lectura continua
-                while state.get("camera_running", False):
+                # Bucle de lectura continua condicionado
+                while cap.isOpened() and state.get("camera_running", False):
                     ret, frame = cap.read()
                     if not ret:
                         log_debug("[Camera Thread] Error de lectura del frame.")
@@ -285,44 +335,13 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
             except Exception as loop_err:
                 log_debug(f"[Camera Thread] Excepción en bucle de streaming: {loop_err}")
             finally:
-                cap.release()
-                log_debug("[Camera Thread] Cámara liberada de forma segura.")
-                
-                # Al salir del bucle (al presionar "Capturar Ahora"), guardamos el último frame
-                last_frame_numpy = state.get("last_frame_numpy")
-                if last_frame_numpy is not None:
-                    # 1. BUG DE CAPTURA: Guardar físicamente usando cv2.imwrite
-                    cv2.imwrite('foto_usuario.jpg', last_frame_numpy)
-                    log_debug("[Camera Thread] Frame guardado físicamente en foto_usuario.jpg")
-                    
-                    try:
-                        with open('foto_usuario.jpg', 'rb') as f:
-                            foto_bytes = f.read()
-                    except Exception as io_err:
-                        log_debug(f"[Camera Thread] Fallo de lectura del archivo guardado: {io_err}")
-                        foto_bytes = state.get("last_frame") # Fallback en memoria si falla I/O
-                        
-                    state["foto_capturada"] = True
-                    state["foto_name"] = "foto_usuario.jpg"
-                    state["foto_bytes"] = foto_bytes
-                    state["foto_url"] = "foto_usuario.jpg"
-                    
-                    encoded_string = imagen_a_base64("foto_usuario.jpg")
-                    state["foto_base64"] = encoded_string
-                    img_preview.src = f"data:image/jpeg;base64,{encoded_string}"
-                    
-                    # Estilo de éxito definitivo
-                    btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
-                    btn_photo.icon = ft.Icons.CHECK_CIRCLE
-                    btn_photo.icon_color = "#00FF66"
-                else:
-                    # Si no hay frame, restaurar estado original
-                    btn_photo.content = ft.Text("Capturar Foto Frontal", color="#FFFFFF")
-                    btn_photo.icon = ft.Icons.CAMERA_ALT
-                    btn_photo.icon_color = "#00F0FF"
-                
-                state["camera_running"] = False
-                page.update()
+                # Asegurar liberación física de la cámara
+                try:
+                    if cap is not None and cap.isOpened():
+                        cap.release()
+                except Exception:
+                    pass
+                log_debug("[Camera Thread] Hilo de cámara finalizado.")
 
         # Iniciar transmisión en hilo secundario (threading)
         threading.Thread(target=stream_camera, daemon=True).start()
@@ -330,7 +349,17 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
     async def subir_foto_archivo(e):
         log_debug("subir_foto_archivo() disparado por clic del botón.")
         # Detener streaming de cámara en caso de que esté activo
-        state["camera_running"] = False
+        if state.get("camera_running", False):
+            state["camera_running"] = False
+            import time
+            time.sleep(0.1)
+            cap = state.get("active_cap")
+            if cap is not None:
+                try:
+                    cap.release()
+                    log_debug("[FilePicker] Cámara liberada físicamente al seleccionar archivo.")
+                except Exception:
+                    pass
         
         try:
             await file_picker.pick_files(
