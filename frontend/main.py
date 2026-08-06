@@ -447,6 +447,8 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
         import requests
         import threading
         
+        state["loading_plan"] = True
+        
         def api_call():
             try:
                 url = "https://run.app/registro"
@@ -501,6 +503,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                 if response.status_code == 201:
                     plan_data = response.json()
                     state["plan_data"] = plan_data
+                    state["loading_plan"] = False
                     print("[API] Rutina de la IA recibida exitosamente del backend.")
                     
                     # Cargar ejercicios de la IA en el estado para el entrenamiento activo si están disponibles
@@ -534,8 +537,10 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                                     } for ej in dia1.get("ejercicios", [])
                                 ]
                 else:
+                    state["loading_plan"] = False
                     print(f"[API] Error del backend ({response.status_code}): {response.text}")
             except Exception as ex:
+                state["loading_plan"] = False
                 print(f"[API] Error de conexión con el backend: {ex}")
                 
         threading.Thread(target=api_call, daemon=True).start()
@@ -888,10 +893,39 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
         border=ft.Border.all(2, "#00FF66" if has_avatar else "#00F0FF")
     )
 
-    # Polling asíncrono para comprobar el estado del avatar en FastAPI
+    # Polling asíncrono para comprobar el estado del plan de entrenamiento y el avatar
     def poll_avatar_status():
         import time
         import requests
+        
+        # 1. Esperar a que la petición del plan de entrenamiento finalice
+        while state.get("loading_plan", True):
+            time.sleep(0.5)
+            
+        # Petición finalizada con éxito o error, actualizar la UI con el plan
+        # Colocar la foto de perfil en Base64 cargada en memoria como avatar temporal de Roky
+        foto_base64 = None
+        if page.data and isinstance(page.data, dict) and page.data.get("foto_base64"):
+            foto_base64 = page.data["foto_base64"]
+        elif state.get("foto_base64"):
+            foto_base64 = state.get("foto_base64")
+            
+        if foto_base64:
+            img_avatar.src = f"data:image/jpeg;base64,{foto_base64}"
+            
+        # Ocultar anillo de carga y mostrar el avatar del usuario
+        avatar_card.content = img_avatar
+        avatar_card.border = ft.Border.all(2, "#00FF66")
+        
+        # Actualizar los textos y ejercicios con la información real de Gemini
+        actualizar_simulacion(0)
+        
+        try:
+            page.update()
+        except Exception:
+            pass
+            
+        # 2. Polling secundario para el avatar de cómic estilizado de IA (si el backend lo procesa en segundo plano)
         nombre_req = state.get("nombre", "")
         if not nombre_req:
             return
@@ -906,10 +940,8 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
                         state["avatar_comic_url"] = data.get("avatar_comic_url")
                         state["avatar_generado"] = True
                         
-                        # Actualizar la interfaz del avatar
+                        # Actualizar la interfaz con el avatar estilizado final
                         img_avatar.src = state["avatar_comic_url"]
-                        avatar_card.content = img_avatar
-                        avatar_card.border = ft.Border.all(2, "#00FF66")
                         try:
                             page.update()
                         except Exception:
@@ -919,10 +951,9 @@ def vista_simulacion(page: ft.Page, state: dict, navegar_a):
                 print(f"[Polling Error] {e}")
             time.sleep(1.0)
 
-    # Iniciar polling si el avatar no está listo
-    if not state.get("avatar_generado", False):
-        import threading
-        threading.Thread(target=poll_avatar_status, daemon=True).start()
+    # Iniciar el hilo de actualización de estado y polling
+    import threading
+    threading.Thread(target=poll_avatar_status, daemon=True).start()
 
     # Columnas flotantes a los lados
     col_left = ft.Column(
