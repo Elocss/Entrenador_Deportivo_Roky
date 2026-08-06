@@ -100,11 +100,9 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
 
 
 
-    PIXEL_TRANSPARENTE = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
-
     # Preview y captura de foto
     img_preview = ft.Image(
-        src_base64=PIXEL_TRANSPARENTE,
+        src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
         width=100,
         height=100,
         fit="cover",
@@ -150,7 +148,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     
                     encoded_string = imagen_a_base64("foto_usuario.jpg")
                     state["foto_base64"] = encoded_string
-                    img_preview.src_base64 = encoded_string
+                    img_preview.src = f"data:image/jpeg;base64,{encoded_string}"
                     
                     img_preview.visible = True
                     icon_preview.visible = False
@@ -278,7 +276,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     
                     # Convertir a base64 y transmitir en vivo a Flet
                     encoded_string = base64.b64encode(frame_bytes).decode('utf-8')
-                    img_preview.src_base64 = encoded_string
+                    img_preview.src = f"data:image/jpeg;base64,{encoded_string}"
                     page.update()
                     
                     # Control de refresco (~30 fps) para evitar uso excesivo de CPU
@@ -311,7 +309,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     
                     encoded_string = imagen_a_base64("foto_usuario.jpg")
                     state["foto_base64"] = encoded_string
-                    img_preview.src_base64 = encoded_string
+                    img_preview.src = f"data:image/jpeg;base64,{encoded_string}"
                     
                     # Estilo de éxito definitivo
                     btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
