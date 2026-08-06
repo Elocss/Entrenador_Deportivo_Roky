@@ -119,59 +119,160 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
     file_picker = state["file_picker"]
 
     async def capturar_foto(e):
-        log_debug("capturar_foto() disparado por clic del botón.")
+        log_debug("capturar_foto() disparado por clic del botón con OpenCV.")
         
-        try:
-            # 1. Intentamos usar la cámara nativa de Flet (flet-camera) para dispositivos reales
-            log_debug("[Camera Init] Intentando usar cámara física nativa...")
-            import flet_camera as fc
+        # 1. REVISIÓN DEL ÍNDICE DE CÁMARA (Bucle de índices [0, 1, 2] con OpenCV)
+        import cv2
+        cap = None
+        cam_index_worked = -1
+        
+        for idx in [0, 1, 2]:
+            try:
+                log_debug(f"[OpenCV] Intentando inicializar cámara en índice {idx}...")
+                cap = cv2.VideoCapture(idx)
+                if cap is not None and cap.isOpened():
+                    cam_index_worked = idx
+                    log_debug(f"[OpenCV] Cámara abierta con éxito en índice {idx}")
+                    break
+                else:
+                    if cap is not None:
+                        cap.release()
+                    cap = None
+            except Exception as cam_err:
+                log_debug(f"[OpenCV] Fallo al probar índice {idx}: {cam_err}")
+                if cap is not None:
+                    cap.release()
+                cap = None
+
+        if cap is not None and cap.isOpened() and cam_index_worked != -1:
+            try:
+                # Capturar el fotograma
+                ret, frame = cap.read()
+                if ret:
+                    # Codificar fotograma a JPEG
+                    _, buffer = cv2.imencode('.jpg', frame)
+                    foto_bytes = buffer.tobytes()
+                    
+                    state["foto_capturada"] = True
+                    state["foto_name"] = "foto_camara_local.jpg"
+                    state["foto_bytes"] = foto_bytes
+                    state["foto_url"] = "foto_camara_local.jpg"
+                    
+                    # Convertir a base64 para vista previa
+                    import base64
+                    encoded_string = base64.b64encode(foto_bytes).decode('utf-8')
+                    state["foto_base64"] = encoded_string
+                    img_preview.src_base64 = encoded_string
+                    img_preview.visible = True
+                    icon_preview.visible = False
+                    
+                    btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
+                    btn_photo.icon = ft.Icons.CHECK_CIRCLE
+                    btn_photo.icon_color = "#00FF66"
+                    
+                    # Restaurar botón de upload por si acaso
+                    btn_upload.content = ft.Text("Subir Foto desde Archivo", color="#FFFFFF")
+                    btn_upload.icon = ft.Icons.UPLOAD_FILE
+                    btn_upload.icon_color = "#00F0FF"
+                    
+                    page.update()
+                else:
+                    raise Exception("El sensor no pudo recuperar el fotograma de imagen.")
+            except Exception as run_err:
+                log_debug(f"[OpenCV] Error de lectura de flujo de video: {run_err}")
+                page.snack_bar = ft.SnackBar(
+                    content=ft.Text(f"Error al leer flujo de cámara: {run_err}", color="#FFFFFF"),
+                    bgcolor="#FF3333"
+                )
+                page.snack_bar.open = True
+                page.update()
+            finally:
+                cap.release()
+        else:
+            # 2. MANEJO DE ERRORES VISUAL en FLET (Banner o SnackBar)
+            log_debug("[OpenCV Fail] No se pudo inicializar ninguna cámara en los índices [0, 1, 2]")
             
-            # Instanciamos el control temporalmente para captura
-            cam = fc.Camera(visible=False)
-            page.overlay.append(cam)
-            page.update()
-            
-            # Ejecución del disparo nativo de Flet
-            foto_bytes = await cam.take_picture()
-            if not foto_bytes:
-                raise Exception("La cámara física no devolvió bytes de imagen.")
-                
-            state["foto_capturada"] = True
-            state["foto_name"] = "foto_camara_real.jpg"
-            state["foto_bytes"] = foto_bytes
-            log_debug("[Camera Init] Foto capturada exitosamente con cámara real.")
-            
-        except Exception as err:
-            # 2. Bloque de detección y captura limpia de errores de hardware/permisos/web emulador
-            log_debug(f"[Detección Entorno] Error al acceder a cámara nativa ({err}). Cargando fallback de bytes del atleta...")
-            
-            # Imagen predeterminada en bytes (Simulación de medio cuerpo de atleta en Cyber Dark)
+            # Cargar fallback automático silencioso para evitar que el estado quede en blanco
             import base64
             mock_bytes = base64.b64decode(
                 "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
             )
-            
             state["foto_capturada"] = True
             state["foto_name"] = "foto_atleta_simulada.png"
             state["foto_bytes"] = mock_bytes
+            state["foto_url"] = "foto_atleta_simulada.png"
             
-            lbl_error.value = "Hardware de cámara no disponible. Cargando simulación instantánea."
-            lbl_error.color = "#00F0FF"  # Cyan cyberpunk
-            page.update()
-
-        # Renderizar la preview a partir de los bytes obtenidos
-        if state.get("foto_bytes"):
-            import base64
-            foto_bytes = state["foto_bytes"]
-            encoded_string = base64.b64encode(foto_bytes).decode('utf-8')
+            encoded_string = base64.b64encode(mock_bytes).decode('utf-8')
             state["foto_base64"] = encoded_string
             img_preview.src_base64 = encoded_string
-            
             img_preview.visible = True
             icon_preview.visible = False
-            btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
-            btn_photo.icon = ft.Icons.CHECK_CIRCLE
-            btn_photo.icon_color = "#00FF66"
+            
+            # Mostrar SnackBar de alerta de error
+            page.snack_bar = ft.SnackBar(
+                content=ft.Text("Error: No se detectó ninguna cámara activa. Verifica los permisos de tu terminal.", color="#FFFFFF"),
+                bgcolor="#FF3333",
+                duration=4000
+            )
+            page.snack_bar.open = True
+            page.update()
+
+    async def subir_foto_archivo(e):
+        log_debug("subir_foto_archivo() disparado por clic del botón.")
+        try:
+            if file_picker not in page.overlay:
+                page.overlay.append(file_picker)
+                page.update()
+                
+            files = await file_picker.pick_files(
+                allow_multiple=False,
+                allowed_extensions=["jpg", "png", "jpeg"]
+            )
+            
+            if files and len(files) > 0:
+                file_info = files[0]
+                log_debug(f"[FilePicker] Selección de archivo: name={file_info.name}, path={file_info.path}")
+                
+                foto_bytes = file_info.bytes
+                if not foto_bytes and file_info.path:
+                    import os
+                    if os.path.exists(file_info.path):
+                        with open(file_info.path, "rb") as f:
+                            foto_bytes = f.read()
+                            
+                if foto_bytes:
+                    state["foto_capturada"] = True
+                    state["foto_name"] = file_info.name
+                    state["foto_bytes"] = foto_bytes
+                    state["foto_url"] = file_info.path or file_info.name
+                    
+                    import base64
+                    encoded_string = base64.b64encode(foto_bytes).decode('utf-8')
+                    state["foto_base64"] = encoded_string
+                    img_preview.src_base64 = encoded_string
+                    
+                    img_preview.visible = True
+                    icon_preview.visible = False
+                    
+                    btn_upload.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
+                    btn_upload.icon = ft.Icons.CHECK_CIRCLE
+                    btn_upload.icon_color = "#00FF66"
+                    
+                    # Restaurar botón de cámara
+                    btn_photo.content = ft.Text("Capturar Foto Frontal", color="#FFFFFF")
+                    btn_photo.icon = ft.Icons.CAMERA_ALT
+                    btn_photo.icon_color = "#00F0FF"
+                    
+                    page.update()
+                else:
+                    raise Exception("No se pudieron leer los bytes de la imagen seleccionada.")
+        except Exception as file_err:
+            log_debug(f"[FilePicker Error] {file_err}")
+            page.snack_bar = ft.SnackBar(
+                content=ft.Text(f"Error al subir archivo: {file_err}", color="#FFFFFF"),
+                bgcolor="#FF3333"
+            )
+            page.snack_bar.open = True
             page.update()
 
     btn_photo = ft.ElevatedButton(
@@ -184,6 +285,18 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
             shape=ft.RoundedRectangleBorder(radius=10)
         ),
         on_click=capturar_foto
+    )
+
+    btn_upload = ft.ElevatedButton(
+        content=ft.Text("Subir Foto desde Archivo", color="#FFFFFF"),
+        icon=ft.Icons.UPLOAD_FILE,
+        icon_color="#00F0FF",
+        style=ft.ButtonStyle(
+            bgcolor="#161B22",
+            side=ft.BorderSide(1, "#1F2937"),
+            shape=ft.RoundedRectangleBorder(radius=10)
+        ),
+        on_click=subir_foto_archivo
     )
 
     def enviar_datos_al_backend(nombre, peso, altura, deporte, foto_bytes, foto_name, plan_meses):
@@ -338,8 +451,9 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                         ft.Stack([icon_preview, img_preview]),
                         ft.Column([
                             btn_photo,
+                            btn_upload,
                             ft.Text("Sube o simula tu foto", size=11, color="#8B949E")
-                        ], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
+                        ], alignment=ft.MainAxisAlignment.CENTER, spacing=10)
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
                     spacing=15
