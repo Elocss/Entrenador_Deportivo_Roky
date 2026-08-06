@@ -6,8 +6,12 @@ import os
 import requests
 
 def imagen_a_base64(ruta_archivo):
+    if not os.path.exists(ruta_archivo):
+        print(f"--- [ERROR INGENIERÍA]: El archivo {ruta_archivo} no existe ---")
+        return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
     with open(ruta_archivo, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode('utf-8')
+        encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+        return f"data:image/jpeg;base64,{encoded_string}"
 
 def map_exercise_to_anim(nombre):
     nombre_lower = nombre.lower()
@@ -175,9 +179,9 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     state["foto_bytes"] = foto_bytes
                     state["foto_url"] = "foto_usuario.jpg"
                     
-                    encoded_string = imagen_a_base64("foto_usuario.jpg")
-                    state["foto_base64"] = encoded_string
-                    img_preview.src = f"data:image/jpeg;base64,{encoded_string}"
+                    # Convertir a Base64 y guardar en el estado global
+                    base64_uri = imagen_a_base64(file_info.path)
+                    state["foto_base64"] = base64_uri.replace("data:image/jpeg;base64,", "").replace("data:image/png;base64,", "")
                     
                     # Persistencia en el estado global
                     if page.data is None:
@@ -185,8 +189,11 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     page.data["foto_bytes"] = foto_bytes
                     page.data["foto_name"] = "foto_usuario.jpg"
                     page.data["foto_url"] = "foto_usuario.jpg"
-                    page.data["foto_base64"] = encoded_string
-                    page.data["foto_perfil"] = f"data:image/jpeg;base64,{encoded_string}"
+                    page.data["foto_base64"] = state["foto_base64"]
+                    page.data["foto_perfil"] = base64_uri
+                    
+                    # Actualizar componente visual de inmediato
+                    img_preview.src = page.data["foto_perfil"]
                     
                     img_preview.visible = True
                     icon_preview.visible = False
@@ -278,11 +285,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                 with open("foto_usuario.jpg", "rb") as f:
                     state["foto_bytes"] = f.read()
                 state["foto_url"] = "foto_usuario.jpg"
-                state["foto_base64"] = base64_data
-                
-                img_preview.src = f"data:image/jpeg;base64,{base64_data}"
-                img_preview.visible = True
-                icon_preview.visible = False
+                state["foto_base64"] = base64_data.replace("data:image/jpeg;base64,", "").replace("data:image/png;base64,", "")
                 
                 # Persistencia en el estado global
                 if page.data is None:
@@ -290,8 +293,13 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                 page.data["foto_bytes"] = state["foto_bytes"]
                 page.data["foto_name"] = "foto_usuario.jpg"
                 page.data["foto_url"] = "foto_usuario.jpg"
-                page.data["foto_base64"] = base64_data
-                page.data["foto_perfil"] = f"data:image/jpeg;base64,{base64_data}"
+                page.data["foto_base64"] = state["foto_base64"]
+                page.data["foto_perfil"] = base64_data
+                
+                # Actualizar componente visual de inmediato
+                img_preview.src = page.data["foto_perfil"]
+                img_preview.visible = True
+                icon_preview.visible = False
                 
                 # Estilo de éxito definitivo
                 btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
