@@ -144,6 +144,7 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     import base64
                     encoded_string = base64.b64encode(foto_bytes).decode('utf-8')
                     state["foto_base64"] = encoded_string
+                    img_preview.src = file_info.path or file_info.name or "foto_usuario.jpg"
                     img_preview.src_base64 = encoded_string
                     
                     img_preview.visible = True
@@ -302,6 +303,12 @@ def vista_registro(page: ft.Page, state: dict, navegar_a):
                     state["foto_name"] = "foto_usuario.jpg"
                     state["foto_bytes"] = foto_bytes
                     state["foto_url"] = "foto_usuario.jpg"
+                    
+                    import base64
+                    encoded_string = base64.b64encode(foto_bytes).decode('utf-8')
+                    state["foto_base64"] = encoded_string
+                    img_preview.src = "foto_usuario.jpg"
+                    img_preview.src_base64 = encoded_string
                     
                     # Estilo de éxito definitivo
                     btn_photo.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
