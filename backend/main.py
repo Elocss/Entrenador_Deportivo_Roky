@@ -22,7 +22,7 @@ import logging
 import requests
 import time
 from typing import Optional, List
-from fastapi import FastAPI, HTTPException, status, BackgroundTasks, File, UploadFile, Form
+from fastapi import FastAPI, HTTPException, status, BackgroundTasks, File, UploadFile, Form, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
@@ -297,6 +297,7 @@ def generar_rutina_con_gemini(nombre: str, peso: float, altura: float, deporte: 
 @app.post("/api/v1/usuarios/", response_model=dict, status_code=201)
 async def registrar_usuario(
     background_tasks: BackgroundTasks,
+    response: Response,
     nombre: str = Form(...),
     peso: float = Form(...),
     altura: float = Form(...),
@@ -304,6 +305,9 @@ async def registrar_usuario(
     plan_meses: int = Form(...),
     foto: UploadFile = File(...)
 ):
+    # Despliegue sin Caché
+    response.headers["Cache-Control"] = "no-store"
+    
     # SEGURIDAD: Validación simple de campos obligatorios
     if not nombre.strip():
         raise HTTPException(
