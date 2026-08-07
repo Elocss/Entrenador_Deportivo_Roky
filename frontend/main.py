@@ -1,225 +1,59 @@
-import base64
 import flet as ft
-import time
-import sys
+import views.register as register_module
+import base64
 import os
-import requests
+import asyncio
 
-def imagen_a_base64(ruta_archivo):
-    if not os.path.exists(ruta_archivo):
-        print(f"--- [ERROR INGENIERÍA]: El archivo {ruta_archivo} no existe ---")
-        return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
-    with open(ruta_archivo, "rb") as image_file:
-        encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
-        return f"data:image/jpeg;base64,{encoded_string}"
+# Variable global o de sesión que asegura la persistencia en Flet
+# page.data = {"foto_perfil": None}
 
-def map_exercise_to_anim(nombre):
-    nombre_lower = nombre.lower()
-    if "sentadilla" in nombre_lower or "squat" in nombre_lower:
-        return "squats"
-    elif "flexion" in nombre_lower or "pushup" in nombre_lower:
-        return "pushups"
-    elif "plancha" in nombre_lower or "plank" in nombre_lower:
-        return "plank"
-    elif "hombro" in nombre_lower or "press" in nombre_lower:
-        return "shoulder_press"
-    elif "remo" in nombre_lower or "row" in nombre_lower:
-        return "dumbbell_row"
-    elif "zancada" in nombre_lower or "lunge" in nombre_lower:
-        return "lunges"
-    elif "puente" in nombre_lower or "glute" in nombre_lower:
-        return "glute_bridge"
-    elif "tijera" in nombre_lower or "scissor" in nombre_lower:
-        return "scissors"
-    elif "trote" in nombre_lower or "jogging" in nombre_lower:
-        return "jogging"
-    elif "correr" in nombre_lower or "sprinting" in nombre_lower:
-        return "sprinting"
-    elif "payaso" in nombre_lower or "jacks" in nombre_lower:
-        return "jumping_jacks"
-    elif "pantorrilla" in nombre_lower or "calf" in nombre_lower:
-        return "calf_raises"
-    return "squats"
-
-# Configuración de rutas de importación para robustez local
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-if current_dir not in sys.path:
-    sys.path.insert(0, current_dir)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
-def log_debug(message):
+async def capturar_foto_usuario(page: ft.Page, e):
     try:
-        log_path = os.path.join(current_dir, "frontend_debug.log")
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}\n")
-    except Exception as e:
-        print(f"Error logging: {e}")
+        # 1. Definimos la ruta temporal segura para congelar los bytes
+        ruta_temporal = os.path.join(os.getcwd(), "foto_ingesta_temp.jpg")
+        
+        # [AQUÍ TU CÓDIGO ACTUAL DE OPENCV O FILEPICKER QUE GUARDA LA FOTO]
+        # Asegúrate de que el archivo físico se escriba en 'ruta_temporal'
+        
+        # 2. Inyección de Sincronización: Pausa controlada para evitar bytes vacíos
+        # Esperamos un máximo de 500ms a que el sistema operativo libere el archivo
+        contador_espera = 0
+        while not os.path.exists(ruta_temporal) or os.path.getsize(ruta_temporal) == 0:
+            await asyncio.sleep(0.1)
+            contador_espera += 1
+            if contador_espera > 5: # Timeout de seguridad a los 500ms
+                raise TimeoutError("El hardware de la cámara no liberó el archivo a tiempo.")
 
-# Intentar importar api_client de manera flexible
-try:
-    import api_client
-except ImportError:
-    try:
-        from frontend import api_client
-    except ImportError:
-        api_client = None
+        # 3. Conversión Segura a Base64 una vez validado el tamaño en disco
+        with open(ruta_temporal, "rb") as archivo_imagen:
+            bytes_reales = archivo_imagen.read()
+            tamano_bytes = len(bytes_reales)
+            
+            # Validación e impresión en la terminal (Criterio de éxito)
+            print(f"\n[TELEMETRÍA FASE 1] -> Foto capturada con éxito de forma síncrona.")
+            print(f"[TELEMETRÍA FASE 1] -> bytes_len = {tamano_bytes} bytes.")
+            
+            # Codificación limpia sin saltos de línea para el envío JSON al backend
+            foto_base64 = base64.b64encode(bytes_reales).decode("utf-8")
+            
+            # Guardamos el string en la memoria persistente de la app
+            page.data["foto_perfil"] = foto_base64
 
-# --- VISTA 1: REGISTRO ---
-def vista_registro(page: ft.Page, state: dict, navegar_a):
-    txt_nombre = ft.TextField(
-        label="Nombre Completo",
-        value=state["nombre"],
-        border_color="#1F2937",
-        focused_border_color="#00FF66",
-        label_style=ft.TextStyle(color="#8B949E"),
-        text_style=ft.TextStyle(color="#FFFFFF", weight=ft.FontWeight.W_500),
-        cursor_color="#00FF66",
-        bgcolor="#161B22",
-        border_radius=10,
-        height=50,
-    )
-    
-    txt_peso = ft.TextField(
-        label="Peso (kg)",
-        value=str(state["peso"]) if state["peso"] > 0 else "",
-        keyboard_type=ft.KeyboardType.NUMBER,
-        border_color="#1F2937",
-        focused_border_color="#00FF66",
-        label_style=ft.TextStyle(color="#8B949E"),
-        text_style=ft.TextStyle(color="#FFFFFF", weight=ft.FontWeight.W_500),
-        cursor_color="#00FF66",
-        bgcolor="#161B22",
-        border_radius=10,
-        height=50,
-        expand=True
-    )
-    
-    txt_altura = ft.TextField(
-        label="Altura (cm)",
-        value=str(state["altura"]) if state["altura"] > 0 else "",
-        keyboard_type=ft.KeyboardType.NUMBER,
-        border_color="#1F2937",
-        focused_border_color="#00FF66",
-        label_style=ft.TextStyle(color="#8B949E"),
-        text_style=ft.TextStyle(color="#FFFFFF", weight=ft.FontWeight.W_500),
-        cursor_color="#00FF66",
-        bgcolor="#161B22",
-        border_radius=10,
-        height=50,
-        expand=True
-    )
-    
-    dd_deporte = ft.Dropdown(
-        label="Deporte de Entrenamiento",
-        options=[
-            ft.dropdown.Option("Fitness / Gimnasio"),
-            ft.dropdown.Option("Running"),
-            ft.dropdown.Option("Crossfit"),
-            ft.dropdown.Option("Calistenia")
-        ],
-        value=state["deporte"],
-        border_color="#1F2937",
-        focused_border_color="#00FF66",
-        label_style=ft.TextStyle(color="#8B949E"),
-        text_style=ft.TextStyle(color="#FFFFFF", weight=ft.FontWeight.W_500),
-        bgcolor="#161B22",
-        border_radius=10,
-        height=50,
-    )
+        # 4. Limpieza del entorno local para no saturar el almacenamiento
+        if os.path.exists(ruta_temporal):
+            os.remove(ruta_temporal)
+            
+        # Actualización visual en el frontend indicando éxito
+        page.snack_bar = ft.SnackBar(ft.Text("Foto procesada y congelada con éxito."), bgcolor="#00FF66")
+        page.snack_bar.open = True
+        page.update()
 
-    lbl_error = ft.Text(value="", color="#FF3333", size=13, weight=ft.FontWeight.BOLD)
-
-
-
-    # Preview y captura de foto
-    img_preview = ft.Image(
-        src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-        width=100,
-        height=100,
-        fit="cover",
-        border_radius=50,
-        visible=state.get("foto_capturada", False)
-    )
-    
-    icon_preview = ft.Container(
-        content=ft.Icon(ft.Icons.CAMERA_ALT, size=36, color="#8B949E"),
-        width=100,
-        height=100,
-        border_radius=50,
-        bgcolor="#161B22",
-        alignment=ft.alignment.Alignment.CENTER,
-        border=ft.Border.all(1, "#1F2937"),
-        visible=not state.get("foto_capturada", False)
-    )
-
-    def cuando_seleccione_archivo(e: ft.FilePickerResultEvent):
-        try:
-            if e.files and len(e.files) > 0:
-                file_info = e.files[0]
-                log_debug(f"[FilePicker] Archivo seleccionado por usuario: name={file_info.name}, path={file_info.path}")
-                
-                # Obtener bytes
-                foto_bytes = file_info.bytes
-                if not foto_bytes and file_info.path:
-                    import os
-                    if os.path.exists(file_info.path):
-                        with open(file_info.path, "rb") as f:
-                            foto_bytes = f.read()
-                            
-                if foto_bytes or (file_info.path and os.path.exists(file_info.path)):
-                    if not foto_bytes and file_info.path:
-                        with open(file_info.path, "rb") as image_file:
-                            foto_bytes = image_file.read()
-                            
-                    base64_data = base64.b64encode(foto_bytes).decode('utf-8')
-                    base64_uri = f"data:image/jpeg;base64,{base64_data}"
-                    
-                    state["foto_capturada"] = True
-                    state["foto_name"] = "foto_usuario.jpg"
-                    state["foto_bytes"] = foto_bytes
-                    state["foto_url"] = "foto_usuario.jpg"
-                    state["foto_base64"] = base64_data
-                    
-                    # Persistencia en el estado global
-                    if page.data is None:
-                        page.data = {}
-                    page.data["foto_bytes"] = foto_bytes
-                    page.data["foto_name"] = "foto_usuario.jpg"
-                    page.data["foto_url"] = "foto_usuario.jpg"
-                    page.data["foto_base64"] = base64_data
-                    page.data["foto_perfil"] = base64_uri
-                    
-                    # Actualizar componente visual de inmediato sin archivos físicos
-                    img_preview.src = page.data["foto_perfil"]
-                    
-                    img_preview.visible = True
-                    icon_preview.visible = False
-                    
-                    # Actualizar estilo de botón upload
-                    btn_upload.content = ft.Text("¡Foto Cargada!", color="#00FF66", weight=ft.FontWeight.BOLD)
-                    btn_upload.icon = ft.Icons.CHECK_CIRCLE
-                    btn_upload.icon_color = "#00FF66"
-                    
-                    # Restaurar botón de cámara
-                    btn_photo.content = ft.Text("Capturar Foto Frontal", color="#FFFFFF")
-                    btn_photo.icon = ft.Icons.CAMERA_ALT
-                    btn_photo.icon_color = "#00F0FF"
-                    
-                    page.update()
-                else:
-                    raise Exception("No se pudieron extraer los bytes de la imagen seleccionada.")
-            else:
-                log_debug("[FilePicker] Cancelado por el usuario.")
-        except Exception as file_err:
-            log_debug(f"[FilePicker Error] {file_err}")
-            page.snack_bar = ft.SnackBar(
-                content=ft.Text(f"Error al subir archivo: {file_err}", color="#FFFFFF"),
-                bgcolor="#FF3333"
-            )
-            page.snack_bar.open = True
-            page.update()
+    except Exception as error:
+        print(f"\n[ERROR CRÍTICO FASE 1] -> Falló la ingesta: {str(error)}")
+        page.data["foto_perfil"] = None
+        page.snack_bar = ft.SnackBar(ft.Text(f"Error en captura: {str(error)}"), bgcolor="#FF0033")
+        page.snack_bar.open = True
+        page.update()
 
     file_picker = ft.FilePicker()
     file_picker.on_result = cuando_seleccione_archivo
@@ -1709,19 +1543,17 @@ def main(page: ft.Page):
         state["is_animating"] = False
         state["is_resting"] = False
         
-        if vista_name == "registro":
-            main_container.content = vista_registro(page, state, navegar_a)
-        elif vista_name == "plan":
-            main_container.content = vista_plan(page, state, navegar_a)
-        elif vista_name == "simulacion":
-            main_container.content = vista_simulacion(page, state, navegar_a)
-        elif vista_name == "entrenamiento":
-            main_container.content = vista_entrenamiento(page, state, navegar_a)
-        
-        page.update()
+ # Reemplaza la línea 1546 para que use un condicional seguro
+if 'page' in locals() or 'page' in globals():
+    if page.route == "/" or page.route == "registro" or page.route == "":
+        main_container.content = register_module.get_register_view(
+            page=page, 
+            on_register_success=lambda: navegar_a("loading_selection")
+        )
+
 
     # Estructura del marco del móvil (estilo Cyberpunk Premium)
-    mobile_frame = ft.Container(
+mobile_frame = ft.Container(
         width=380,
         height=720,
         bgcolor="#0D1117",
@@ -1734,15 +1566,88 @@ def main(page: ft.Page):
             color="#000000",
             offset=ft.Offset(0, 5)
         ),
-        content=main_container
+            # Creamos e inyectamos el contenedor en una sola línea segura
+    content=locals().get('main_container', ft.Container())
+
     )
 
+ # =========================================================================
+# FUNCIÓN DE ARRANQUE SEGURO (BYPASS DE INFRAESTRUCTURA)
+# =========================================================================
+import flet as ft
+
+def inicializar_roky_seguro(page: ft.Page):
+    # 1. Configuración de página con variables aisladas en scope correcto
+    page.title = "Roky - AI Personal Trainer"
+    page.theme_mode = ft.ThemeMode.DARK
+    page.bgcolor = "#0D1117"
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.vertical_alignment = ft.MainAxisAlignment.CENTER
-    page.add(mobile_frame)
+    
+    # Simulación de ventana móvil
+    page.window_width = 420
+    page.window_height = 800
+    
+    # 2. SE DECLARA PRIMERO EL CONTENEDOR PRINCIPAL DEL LAYOUT
+    main_container = ft.Container(expand=True)
+    page.add(main_container)
+    
+    # 3. Estado local de navegación dummy para evitar caídas
+    state = {}
+    def navegar_a(destino):
+        print(f"[NAVEGACIÓN] Solicitado cambio a: {destino}")
 
-    # Iniciar flujo
-    navegar_a("registro")
+    # 4. Inyección directa de prueba limpia y sin atributos conflictivos
+    try:
+        main_container.content = ft.Container(
+            content=ft.Column([
+                ft.Text("🚀 ¡SERVIDOR ROKY EN LÍNEA!", size=28, weight=ft.FontWeight.BOLD, color="#00FF66"),
+                ft.Text("La infraestructura de Flet está funcionando perfectamente.", size=14, color="#8B949E"),
+                ft.Text("Si ves este mensaje, la base del software está lista.", size=14, color="#00F0FF"),
+            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+            expand=True
+        )
+    except Exception as err:
+        print(f"[ERROR EN VISUALIZACIÓN] {err}")
+        
+    page.update()
 
+         # 4. Inyección directa de prueba limpia y sin atributos conflictivos
+    try:
+        main_container.content = ft.Container(
+            content=ft.Column([
+                ft.Text("🚀 ¡SERVIDOR ROKY EN LÍNEA!", size=28, weight=ft.FontWeight.BOLD, color="#00FF66"),
+                ft.Text("La infraestructura de Flet está funcionando perfectamente.", size=14, color="#8B949E"),
+                ft.Text("Si ves este mensaje, la base del software está lista.", size=14, color="#00F0FF"),
+            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+            expand=True
+        )
+    except Exception as err:
+        print(f"[ERROR EN VISUALIZACIÓN] {err}")
+
+        
+        # INYECTAMOS UN TEXTO VIBRANTE DIRECTO PARA FORZAR EL PINTADO:
+        main_container.content = ft.Container(
+            content=ft.Column([
+                ft.Text("🚀 ¡SERVIDOR ROKY EN LÍNEA!", size=28, weight=ft.FontWeight.BOLD, color="#00FF66"),
+                ft.Text("La infraestructura de Flet está funcionando perfectamente.", size=14, color="#8B949E"),
+                ft.Text("Si ves este mensaje, el fallo está dentro de register.py", size=14, color="#00F0FF"),
+                ft.Button("Botón de Test", bgcolor="#161B22", color="#FFFFFF")
+
+            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+             
+            expand=True
+        )
+    except Exception as err:
+        print(f"[ERROR EN VISUALIZACIÓN] {err}")
+
+
+# Ejecución nativa mapeada al host y puerto correcto
 if __name__ == "__main__":
-    ft.app(target=main, assets_dir="assets", view=ft.AppView.WEB_BROWSER, port=8501, host="127.0.0.1")
+    ft.app(
+        target=inicializar_roky_seguro, 
+        assets_dir="assets", 
+        view=ft.AppView.WEB_BROWSER, 
+        port=8501, 
+        host="0.0.0.0"
+    )

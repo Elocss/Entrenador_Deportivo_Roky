@@ -1,6 +1,6 @@
 import flet as ft
-import re
-from frontend import api_client
+import views.register as register_module
+
 
 def get_register_view(page: ft.Page, on_register_success):
     # Validaciones
